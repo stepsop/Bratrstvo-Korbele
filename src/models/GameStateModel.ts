@@ -24,12 +24,36 @@ export interface ParticleItem {
     life: number;
 }
 
+export type TavernBgPresetKey = '16x9' | '4x3' | '3x4' | '9x16';
+
+export interface HotspotPlacement {
+    srcX: number;
+    srcY: number;
+    srcW: number;
+    srcH: number;
+}
+
+export interface TavernBgPreset {
+    key: TavernBgPresetKey;
+    url: string;
+    width: number;
+    height: number;
+    placements: Record<'clinic' | 'quests' | 'host' | 'mercs' | 'verbirz', HotspotPlacement>;
+}
+
 export interface GuildHotspot {
     id: 'clinic' | 'quests' | 'host' | 'mercs' | 'verbirz';
+    /** Координаты в пространстве 520x290 Canvas */
     x: number;
     y: number;
     w: number;
     h: number;
+    /** Точные координаты спрайта в пространстве 1200x896 исходного арта (по умолчанию 4:3) */
+    srcX: number;
+    srcY: number;
+    srcW: number;
+    srcH: number;
+    spriteUrl: string;
     title: string;
     labelX: number;
     labelY: number;
@@ -62,6 +86,7 @@ export class GameStateModel {
     public floatingTexts: FloatingTextItem[] = [];
     public particles: ParticleItem[] = [];
     public hoveredHotspot: GuildHotspot | null = null;
+    public activeBgPreset: TavernBgPresetKey = '4x3';
 
     public gold: number = 60;
     public beer: number = 3;
@@ -79,7 +104,6 @@ export class GameStateModel {
     public mapState = { dir: 'to_quest' as 'to_quest' | 'to_guild', progress: 0, ambushTriggered: false };
     public combat = new CombatStateModel();
 
-    // UI-состояние для окон НПС и детального окна героя
     public selectedRecruiterCampaign: number = 0;
     public selectedHeroesForWar: string[] = [];
     public heroUiState = {
@@ -89,12 +113,121 @@ export class GameStateModel {
         selectedStatusKey: 'passive' as string
     };
 
+    /**
+     * Адаптивные пресеты чистого фона таверны под разные экраны и ротации телефонов (16:9, 4:3, 3:4, 9:16)
+     */
+    public readonly tavernBgPresets: Record<TavernBgPresetKey, TavernBgPreset> = {
+        '16x9': {
+            key: '16x9',
+            url: 'backgrounds/tavern_bg_16x9.png',
+            width: 1600,
+            height: 900,
+            placements: {
+                clinic:  { srcX: 60,   srcY: 78,  srcW: 315, srcH: 296 },
+                quests:  { srcX: 615,  srcY: 92,  srcW: 412, srcH: 256 },
+                host:    { srcX: 1325, srcY: 205, srcW: 165, srcH: 155 },
+                mercs:   { srcX: 95,   srcY: 430, srcW: 515, srcH: 375 },
+                verbirz: { srcX: 1030, srcY: 465, srcW: 166, srcH: 266 }
+            }
+        },
+        '4x3': {
+            key: '4x3',
+            url: 'backgrounds/tavern_bg_4x3.png',
+            width: 1200,
+            height: 896,
+            placements: {
+                clinic:  { srcX: 45,  srcY: 78,  srcW: 315, srcH: 296 },
+                quests:  { srcX: 470, srcY: 92,  srcW: 412, srcH: 256 },
+                host:    { srcX: 925, srcY: 205, srcW: 165, srcH: 155 },
+                mercs:   { srcX: 38,  srcY: 425, srcW: 515, srcH: 375 },
+                verbirz: { srcX: 760, srcY: 460, srcW: 166, srcH: 266 }
+            }
+        },
+        '3x4': {
+            key: '3x4',
+            url: 'backgrounds/tavern_bg_3x4.png',
+            width: 900,
+            height: 1200,
+            placements: {
+                clinic:  { srcX: 34,  srcY: 140, srcW: 236, srcH: 296 },
+                quests:  { srcX: 352, srcY: 154, srcW: 309, srcH: 256 },
+                host:    { srcX: 694, srcY: 267, srcW: 124, srcH: 155 },
+                mercs:   { srcX: 28,  srcY: 487, srcW: 386, srcH: 375 },
+                verbirz: { srcX: 570, srcY: 522, srcW: 125, srcH: 266 }
+            }
+        },
+        '9x16': {
+            key: '9x16',
+            url: 'backgrounds/tavern_bg_9x16.png',
+            width: 900,
+            height: 1600,
+            placements: {
+                clinic:  { srcX: 34,  srcY: 210, srcW: 236, srcH: 296 },
+                quests:  { srcX: 352, srcY: 224, srcW: 309, srcH: 256 },
+                host:    { srcX: 694, srcY: 337, srcW: 124, srcH: 155 },
+                mercs:   { srcX: 28,  srcY: 557, srcW: 386, srcH: 375 },
+                verbirz: { srcX: 570, srcY: 592, srcW: 125, srcH: 266 }
+            }
+        }
+    };
+
+    public getActiveHotspotPlacement(h: GuildHotspot): HotspotPlacement & { bgW: number; bgH: number } {
+        const preset = this.tavernBgPresets[this.activeBgPreset] || this.tavernBgPresets['4x3'];
+        const p = preset.placements[h.id];
+        return {
+            srcX: p.srcX,
+            srcY: p.srcY,
+            srcW: p.srcW,
+            srcH: p.srcH,
+            bgW: preset.width,
+            bgH: preset.height
+        };
+    }
+
+    /**
+     * Интерактивные НПС-спрайты Таверны (отдельные слои поверх нового фона)
+     */
     public readonly guildHotspots: GuildHotspot[] = [
-        { id: 'clinic',  x: 24,  y: 20,  w: 122, h: 98,  title: 'Палаты врачебные', labelX: 85,  labelY: 16 },
-        { id: 'quests',  x: 190, y: 24,  w: 185, h: 88,  title: 'Задания',          labelX: 282, labelY: 18 },
-        { id: 'host',    x: 400, y: 40,  w: 105, h: 82,  title: 'Хозяин таверны / Магазин', labelX: 448, labelY: 32 },
-        { id: 'mercs',   x: 25,  y: 145, w: 195, h: 130, title: 'Стол наемников',   labelX: 115, labelY: 142 },
-        { id: 'verbirz', x: 315, y: 128, w: 185, h: 148, title: 'Вербовщик',        labelX: 410, labelY: 124 }
+        {
+            id: 'clinic',
+            srcX: 45, srcY: 78, srcW: 315, srcH: 296,
+            x: Math.round(45 * 520 / 1200), y: Math.round(78 * 290 / 896),
+            w: Math.round(315 * 520 / 1200), h: Math.round(296 * 290 / 896),
+            spriteUrl: 'sprites/npc_clinic.png',
+            title: 'Палаты врачебные', labelX: 92, labelY: 22
+        },
+        {
+            id: 'quests',
+            srcX: 470, srcY: 92, srcW: 412, srcH: 256,
+            x: Math.round(470 * 520 / 1200), y: Math.round(92 * 290 / 896),
+            w: Math.round(412 * 520 / 1200), h: Math.round(256 * 290 / 896),
+            spriteUrl: 'sprites/npc_quests.png',
+            title: 'Доска заданий', labelX: 292, labelY: 22
+        },
+        {
+            id: 'host',
+            srcX: 925, srcY: 205, srcW: 165, srcH: 155,
+            x: Math.round(925 * 520 / 1200), y: Math.round(205 * 290 / 896),
+            w: Math.round(165 * 520 / 1200), h: Math.round(155 * 290 / 896),
+            spriteUrl: 'sprites/npc_host.png',
+            title: 'Хозяин таверны / Магазин', labelX: 436, labelY: 56
+        },
+        {
+            id: 'mercs',
+            srcX: 38, srcY: 425, srcW: 515, srcH: 375,
+            x: Math.round(38 * 520 / 1200), y: Math.round(425 * 290 / 896),
+            w: Math.round(515 * 520 / 1200), h: Math.round(375 * 290 / 896),
+            spriteUrl: 'sprites/npc_mercs.png',
+            title: 'Стол наемников', labelX: 128, labelY: 132
+        },
+        {
+            id: 'verbirz',
+            srcX: 760, srcY: 460, srcW: 166, srcH: 266,
+            x: Math.round(760 * 520 / 1200), y: Math.round(460 * 290 / 896),
+            w: Math.round(166 * 520 / 1200), h: Math.round(266 * 290 / 896),
+            spriteUrl: 'sprites/npc_verbirz.png',
+            title: 'Королевский Вербовщик', labelX: 365, labelY: 142
+        }
     ];
 
     public readonly warCampaigns: WarContractData[] = [

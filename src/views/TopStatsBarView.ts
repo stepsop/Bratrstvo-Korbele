@@ -28,14 +28,16 @@ export class TopStatsBarView {
         if (state.scene === 'guild' || state.scene === 'map') {
             logEl.style.display = 'none';
             controlsEl.style.display = 'none';
-            vp.style.flex = '1';
+            vp.style.flex = '1 1 auto';
             vp.style.height = '100%';
+            vp.style.maxHeight = 'none';
             vp.style.borderBottom = 'none';
         } else {
             logEl.style.display = 'block';
             controlsEl.style.display = 'flex';
-            vp.style.flex = 'none';
-            vp.style.height = '50vh';
+            vp.style.flex = '1 1 58%';
+            vp.style.height = '58vh';
+            vp.style.maxHeight = '64vh';
             vp.style.borderBottom = '3px solid #7a5230';
         }
     }

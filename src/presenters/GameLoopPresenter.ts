@@ -32,7 +32,7 @@ export class GameLoopPresenter {
             if (this.state.scene === 'guild') {
                 this.state.hoveredHotspot = null;
                 for (const h of this.state.guildHotspots) {
-                    if (mx >= h.x && mx <= h.x + h.w && my >= h.y && my <= h.y + h.h) {
+                    if (this.canvasView.hitTestHotspot(h, mx, my, this.state)) {
                         this.state.hoveredHotspot = h;
                         break;
                     }
@@ -62,8 +62,18 @@ export class GameLoopPresenter {
             const my = (e.clientY - rect.top) * (canvas.height / rect.height);
 
             if (this.state.scene === 'guild') {
-                if (this.state.hoveredHotspot) {
-                    this.guildPresenter.openGuildSection(this.state.hoveredHotspot.id);
+                let targetHotspot = this.state.hoveredHotspot;
+                if (!targetHotspot) {
+                    for (const h of this.state.guildHotspots) {
+                        if (this.canvasView.hitTestHotspot(h, mx, my, this.state)) {
+                            targetHotspot = h;
+                            break;
+                        }
+                    }
+                }
+                if (targetHotspot) {
+                    this.state.hoveredHotspot = targetHotspot;
+                    this.guildPresenter.openGuildSection(targetHotspot.id);
                 }
             } else if (this.state.scene === 'combat' && this.state.combat.active) {
                 const activeHeroes = this.state.party.filter(h => h.status === 'ready');

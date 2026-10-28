@@ -1,4 +1,4 @@
-import { GameStateModel } from '../models/GameStateModel';
+import { GameStateModel, GuildHotspot, TavernBgPresetKey } from '../models/GameStateModel';
 import { HeroModel } from '../models/HeroModel';
 
 export const SPRITES: Record<string, string[]> = {
@@ -60,45 +60,172 @@ export const SPRITES: Record<string, string[]> = {
     ]
 };
 
+interface NpcCutoutLayer {
+    img: HTMLImageElement;
+    loaded: boolean;
+    glowCanvas: HTMLCanvasElement;
+    alphaData: Uint8ClampedArray | null;
+    w: number;
+    h: number;
+}
+
+interface BgLayer {
+    img: HTMLImageElement;
+    loaded: boolean;
+}
+
 /**
- * View-компонент отрисовки на HTML5 Canvas (аналог View / SpriteRenderer в Unity)
+ * View-компонент отрисовки на HTML5 Canvas с поддержкой мульти-форматных фонов (16:9, 4:3, 3:4, 9:16)
+ * и отдельных независимых спрайтов НПС с попиксельной контурной подсветкой (MVP View)
  */
 export class CanvasRendererView {
     public readonly canvas: HTMLCanvasElement;
     public readonly ctx: CanvasRenderingContext2D;
-    private bgImage = new Image();
-    private bgLoaded = false;
-    private cleanBgCanvas = document.createElement('canvas');
-    private cleanBgCtx = this.cleanBgCanvas.getContext('2d')!;
+    private bgImages: Record<TavernBgPresetKey, BgLayer> = {
+        '16x9': { img: new Image(), loaded: false },
+        '4x3':  { img: new Image(), loaded: false },
+        '3x4':  { img: new Image(), loaded: false },
+        '9x16': { img: new Image(), loaded: false }
+    };
+    private npcLayers: Record<string, NpcCutoutLayer> = {};
 
-    constructor(canvasId = 'view') {
+    constructor(canvasId = 'view', hotspots: GuildHotspot[] = []) {
         this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
         this.ctx = this.canvas.getContext('2d')!;
-        this.initBackground();
+        this.initBackgrounds();
+        this.initNpcCutoutSprites(hotspots);
     }
 
-    private initBackground(): void {
-        this.bgImage.onload = () => {
-            const W = this.bgImage.naturalWidth || 1200;
-            const H = this.bgImage.naturalHeight || 896;
-            this.cleanBgCanvas.width = W;
-            this.cleanBgCanvas.height = H;
-            this.cleanBgCtx.drawImage(this.bgImage, 0, 0, W, H);
-
-            const sx = W / 1200, sy = H / 896;
-            this.cleanBgCtx.drawImage(this.bgImage, 320*sx, 14*sy, 80*sx, 75*sy, 152*sx, 6*sy, 82*sx, 80*sy);
-            this.cleanBgCtx.drawImage(this.bgImage, 320*sx, 14*sy, 80*sx, 75*sy, 234*sx, 6*sy, 80*sx, 80*sy);
-            this.cleanBgCtx.drawImage(this.bgImage, 480*sx, 38*sy, 134*sx, 52*sy, 616*sx, 38*sy, 134*sx, 52*sy);
-            this.cleanBgCtx.drawImage(this.bgImage, 966*sx, 80*sy, 110*sx, 70*sy, 966*sx, 152*sy, 112*sx, 80*sy);
-            this.cleanBgCtx.drawImage(this.bgImage, 966*sx, 80*sy, 110*sx, 70*sy, 1078*sx, 152*sy, 110*sx, 80*sy);
-            this.cleanBgCtx.drawImage(this.bgImage, 40*sx, 550*sy, 228*sx, 26*sy, 40*sx, 579*sy, 228*sx, 25*sy);
-            this.cleanBgCtx.drawImage(this.bgImage, 40*sx, 630*sy, 228*sx, 26*sy, 40*sx, 604*sy, 228*sx, 25*sy);
-            this.cleanBgCtx.drawImage(this.bgImage, 520*sx, 414*sy, 94*sx, 42*sy, 1017*sx, 414*sy, 96*sx, 42*sy);
-            this.cleanBgCtx.drawImage(this.bgImage, 944*sx, 372*sy, 73*sx, 24*sy, 944*sx, 414*sy, 73*sx, 34*sy);
-
-            this.bgLoaded = true;
+    private initBackgrounds(): void {
+        const urls: Record<TavernBgPresetKey, string> = {
+            '16x9': 'backgrounds/tavern_bg_16x9.png',
+            '4x3':  'backgrounds/tavern_bg_4x3.png',
+            '3x4':  'backgrounds/tavern_bg_3x4.png',
+            '9x16': 'backgrounds/tavern_bg_9x16.png'
         };
-        this.bgImage.src = 'guild_bg.png';
+        (Object.keys(urls) as TavernBgPresetKey[]).forEach(key => {
+            const entry = this.bgImages[key];
+            entry.img.onload = () => {
+                entry.loaded = true;
+            };
+            entry.img.src = urls[key];
+        });
+    }
+
+    /**
+     * Определяет оптимальный размер фона под текущее соотношение сторон окна/телефона (Landscape / Portrait)
+     */
+    public updateResponsiveBgPreset(state: GameStateModel): void {
+        const vp = document.getElementById('viewport-container') || this.canvas;
+        const rect = vp.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+
+        const aspect = rect.width / rect.height;
+        let nextPreset: TavernBgPresetKey = '4x3';
+        if (aspect >= 1.50) {
+            nextPreset = '16x9';
+        } else if (aspect >= 1.05) {
+            nextPreset = '4x3';
+        } else if (aspect >= 0.68) {
+            nextPreset = '3x4';
+        } else {
+            nextPreset = '9x16';
+        }
+        state.activeBgPreset = nextPreset;
+    }
+
+    /**
+     * Загружает отдельные cutout-спрайты для всех 5 НПС/объектов таверны
+     * и генерирует для каждого золотой контур (Sprite Outline + Highlight) по форме самого спрайта
+     */
+    private initNpcCutoutSprites(hotspots: GuildHotspot[]): void {
+        hotspots.forEach(h => {
+            const img = new Image();
+            const glowCanvas = document.createElement('canvas');
+            const layer: NpcCutoutLayer = {
+                img,
+                loaded: false,
+                glowCanvas,
+                alphaData: null,
+                w: h.srcW,
+                h: h.srcH
+            };
+            this.npcLayers[h.id] = layer;
+
+            img.onload = () => {
+                const W = img.naturalWidth || h.srcW;
+                const H = img.naturalHeight || h.srcH;
+                layer.w = W;
+                layer.h = H;
+                glowCanvas.width = W + 8;
+                glowCanvas.height = H + 8;
+
+                const gctx = glowCanvas.getContext('2d')!;
+                // Читаем альфа-маску спрайта для точного попадания мышью и контурного свечения
+                const tmp = document.createElement('canvas');
+                tmp.width = W;
+                tmp.height = H;
+                const tctx = tmp.getContext('2d')!;
+                tctx.drawImage(img, 0, 0);
+                const imgData = tctx.getImageData(0, 0, W, H);
+                layer.alphaData = imgData.data;
+
+                // Создаем золотой силуэт для контурной обводки спрайта (как в изометрических RPG / Unity Sprite Outline)
+                const sil = document.createElement('canvas');
+                sil.width = W;
+                sil.height = H;
+                const sctx = sil.getContext('2d')!;
+                sctx.drawImage(img, 0, 0);
+                sctx.globalCompositeOperation = 'source-in';
+                sctx.fillStyle = '#ffd700';
+                sctx.fillRect(0, 0, W, H);
+
+                // Рисуем контур толщиной 4px вокруг реального силуэта спрайта
+                const offsets = [
+                    [-4, 0], [4, 0], [0, -4], [0, 4],
+                    [-3, -3], [3, -3], [-3, 3], [3, 3]
+                ];
+                offsets.forEach(([ox, oy]) => {
+                    gctx.drawImage(sil, 4 + ox, 4 + oy);
+                });
+
+                // Поверх золотого контура рисуем сам спрайт с легким теплым высветлением
+                gctx.drawImage(img, 4, 4);
+                gctx.save();
+                gctx.globalCompositeOperation = 'source-atop';
+                gctx.fillStyle = 'rgba(255, 220, 90, 0.22)';
+                gctx.fillRect(4, 4, W, H);
+                gctx.restore();
+
+                layer.loaded = true;
+            };
+            img.src = h.spriteUrl;
+        });
+    }
+
+    /**
+     * Попиксельная проверка попадания курсора/касания в непрозрачный пиксель отдельного спрайта НПС
+     * с учетом активного размера фона (16:9, 4:3, 3:4, 9:16)
+     */
+    public hitTestHotspot(h: GuildHotspot, canvasX: number, canvasY: number, state?: GameStateModel): boolean {
+        const p = state
+            ? state.getActiveHotspotPlacement(h)
+            : { srcX: h.srcX, srcY: h.srcY, srcW: h.srcW, srcH: h.srcH, bgW: 1200, bgH: 896 };
+
+        const bgX = canvasX * (p.bgW / this.canvas.width);
+        const bgY = canvasY * (p.bgH / this.canvas.height);
+        if (bgX < p.srcX || bgX > p.srcX + p.srcW || bgY < p.srcY || bgY > p.srcY + p.srcH) {
+            return false;
+        }
+        const layer = this.npcLayers[h.id];
+        if (!layer || !layer.loaded || !layer.alphaData) {
+            return true;
+        }
+        const lx = Math.floor(((bgX - p.srcX) / p.srcW) * layer.w);
+        const ly = Math.floor(((bgY - p.srcY) / p.srcH) * layer.h);
+        if (lx < 0 || lx >= layer.w || ly < 0 || ly >= layer.h) return false;
+        const alpha = layer.alphaData[(ly * layer.w + lx) * 4 + 3];
+        return alpha > 20;
     }
 
     private clamp(v: number, min: number, max: number): number {
@@ -176,37 +303,90 @@ export class CanvasRendererView {
         ctx.restore();
     }
 
+    private static sharedSprites: Record<string, HTMLImageElement> = {};
+
     public drawGuildScene(state: GameStateModel): void {
+        this.updateResponsiveBgPreset(state);
         const ctx = this.ctx;
-        if (this.bgLoaded) {
-            ctx.drawImage(this.cleanBgCanvas, 0, 0, this.canvas.width, this.canvas.height);
+        const activeBg = this.bgImages[state.activeBgPreset] || this.bgImages['4x3'];
+        const fallbackBg = this.bgImages['4x3'];
+
+        if (activeBg && activeBg.loaded) {
+            ctx.drawImage(activeBg.img, 0, 0, this.canvas.width, this.canvas.height);
+        } else if (fallbackBg && fallbackBg.loaded) {
+            ctx.drawImage(fallbackBg.img, 0, 0, this.canvas.width, this.canvas.height);
         } else {
             this.drawDetailedTavernArt(state.frame);
         }
 
+        // Отрисовка каждого отдельного независимого спрайта НПС поверх нового чистого фона таверны
+        for (const h of state.guildHotspots) {
+            const layer = this.npcLayers[h.id];
+            if (!layer || !layer.loaded) continue;
+            const p = state.getActiveHotspotPlacement(h);
+            const scaleX = this.canvas.width / p.bgW;
+            const scaleY = this.canvas.height / p.bgH;
+
+            // Мягкая тень на каменном полу под столом наемников и вербовщиком
+            if (h.id === 'mercs' || h.id === 'verbirz') {
+                ctx.save();
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
+                ctx.beginPath();
+                const cx = (p.srcX + p.srcW * 0.5) * scaleX;
+                const cy = (p.srcY + p.srcH * 0.93) * scaleY;
+                const rx = (p.srcW * (h.id === 'mercs' ? 0.46 : 0.36)) * scaleX;
+                const ry = (p.srcH * 0.08) * scaleY;
+                ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            if (state.hoveredHotspot && state.hoveredHotspot.id === h.id) continue;
+            ctx.drawImage(
+                layer.img,
+                p.srcX * scaleX,
+                p.srcY * scaleY,
+                p.srcW * scaleX,
+                p.srcH * scaleY
+            );
+        }
+
+        // Подсветка контура самого спрайта при наведении
         if (state.hoveredHotspot) {
             const h = state.hoveredHotspot;
+            const layer = this.npcLayers[h.id];
+            const p = state.getActiveHotspotPlacement(h);
+            const scaleX = this.canvas.width / p.bgW;
+            const scaleY = this.canvas.height / p.bgH;
+
             ctx.save();
-            ctx.fillStyle = 'rgba(255, 215, 0, 0.14)';
-            ctx.fillRect(h.x, h.y, h.w, h.h);
+            if (layer && layer.loaded) {
+                const padX = (4 / layer.w) * p.srcW;
+                const padY = (4 / layer.h) * p.srcH;
+                const dx = (p.srcX - padX) * scaleX;
+                const dy = (p.srcY - padY) * scaleY;
+                const dw = (p.srcW + padX * 2) * scaleX;
+                const dh = (p.srcH + padY * 2) * scaleY;
+                ctx.drawImage(layer.glowCanvas, dx, dy, dw, dh);
+            }
+
+            // Всплывающая табличка с названием над подсвеченным спрайтом
+            ctx.font = 'bold 12px Courier New';
+            const tw = ctx.measureText(h.title).width + 16;
+            const centerCanvasX = (p.srcX + p.srcW * 0.5) * scaleX;
+            const topCanvasY = p.srcY * scaleY;
+            const tx = this.clamp(centerCanvasX - tw / 2, 6, this.canvas.width - tw - 6);
+            const ty = this.clamp(topCanvasY - 22, 4, this.canvas.height - 24);
+
+            ctx.fillStyle = 'rgba(18, 13, 9, 0.94)';
+            ctx.fillRect(tx, ty, tw, 20);
             ctx.strokeStyle = '#ffd700';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(h.x, h.y, h.w, h.h);
-
-            ctx.font = 'bold 13px Courier New';
-            const tw = ctx.measureText(h.title).width + 18;
-            const tx = this.clamp(h.labelX - tw / 2, 6, this.canvas.width - tw - 6);
-            const ty = Math.max(6, h.labelY - 12);
-
-            ctx.fillStyle = 'rgba(18, 14, 11, 0.92)';
-            ctx.fillRect(tx, ty, tw, 22);
-            ctx.strokeStyle = '#c69c6d';
             ctx.lineWidth = 1.5;
-            ctx.strokeRect(tx, ty, tw, 22);
+            ctx.strokeRect(tx, ty, tw, 20);
 
-            ctx.fillStyle = '#f5ebd6';
+            ctx.fillStyle = '#ffd700';
             ctx.textAlign = 'center';
-            ctx.fillText(h.title, tx + tw / 2, ty + 15);
+            ctx.fillText(h.title, tx + tw / 2, ty + 14);
             ctx.restore();
         }
     }
@@ -215,27 +395,6 @@ export class CanvasRendererView {
         const ctx = this.ctx;
         ctx.fillStyle = '#26211d'; ctx.fillRect(0, 0, 520, 118);
         ctx.fillStyle = '#2d2823'; ctx.fillRect(0, 142, 520, 148);
-
-        ctx.strokeStyle = '#171310'; ctx.lineWidth = 1;
-        for (let y = 0; y < 118; y += 14) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(520, y); ctx.stroke();
-            const off = (Math.floor(y / 14) % 2) * 16;
-            for (let x = off; x < 520; x += 32) {
-                ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 14); ctx.stroke();
-            }
-        }
-        for (let y = 145; y < 290; y += 18) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(520, y); ctx.stroke();
-            const off = (Math.floor(y / 18) % 2) * 22;
-            for (let x = off; x < 520; x += 44) {
-                ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 18); ctx.stroke();
-            }
-        }
-
-        ctx.fillStyle = '#332214'; ctx.fillRect(195, 26, 175, 76);
-        ctx.strokeStyle = '#5c3c20'; ctx.lineWidth = 4; ctx.strokeRect(195, 26, 175, 76);
-        ctx.fillStyle = '#734f2c'; ctx.fillRect(8, 114, 504, 16);
-        ctx.fillStyle = '#472f18'; ctx.fillRect(8, 130, 504, 24);
         ctx.fillStyle = (frame % 24 < 12) ? '#ffd700' : '#fff394';
         ctx.fillRect(439, 74, 4, 4);
     }
@@ -401,49 +560,40 @@ export class CanvasRendererView {
         if (!cv) return;
         const c = cv.getContext('2d')!;
         c.clearRect(0, 0, 72, 72);
+        c.fillStyle = '#140d08';
+        c.fillRect(0, 0, 72, 72);
 
-        if (sec === 'host') {
-            c.fillStyle = '#26180f'; c.fillRect(0, 0, 72, 72);
-            c.fillStyle = '#4a2f18'; c.fillRect(16, 38, 40, 34);
-            c.fillStyle = '#e0c9aa'; c.fillRect(24, 38, 24, 34);
-            c.fillStyle = '#d4a379'; c.beginPath(); c.arc(36, 26, 16, 0, Math.PI*2); c.fill();
-            c.fillStyle = '#22150c'; c.fillRect(20, 10, 32, 10);
-            c.fillStyle = '#1a0d06'; c.fillRect(28, 28, 16, 6);
-            c.fillStyle = '#fff'; c.fillRect(29, 29, 4, 4);
-            c.fillStyle = '#ffd700'; c.fillRect(34, 29, 5, 5);
-            c.fillStyle = '#c69c6d'; c.fillRect(50, 44, 16, 22);
-            c.fillStyle = '#fff'; c.fillRect(50, 40, 16, 6);
-        } else if (sec === 'clinic') {
-            c.fillStyle = '#1c1713'; c.fillRect(0, 0, 72, 72);
-            c.fillStyle = '#e8e2d8'; c.beginPath(); c.arc(36, 30, 24, 0, Math.PI*2); c.fill();
-            c.fillStyle = '#d4a379'; c.beginPath(); c.arc(36, 34, 13, 0, Math.PI*2); c.fill();
-            c.fillStyle = '#3a2b1f'; c.fillRect(30, 30, 3, 3); c.fillRect(39, 30, 3, 3);
-            c.fillStyle = '#b03030';
-            c.fillRect(34, 10, 4, 14); c.fillRect(29, 15, 14, 4);
-            c.fillStyle = '#9e9689'; c.fillRect(16, 52, 40, 20);
-        } else if (sec === 'mercs') {
-            c.fillStyle = '#161311'; c.fillRect(0, 0, 72, 72);
-            c.fillStyle = '#6b7278'; c.beginPath(); c.arc(36, 26, 18, 0, Math.PI, true); c.fill();
-            c.fillRect(14, 24, 44, 6);
-            c.fillStyle = '#d4a379'; c.fillRect(22, 28, 28, 22);
-            c.fillStyle = '#3a1f18'; c.fillRect(22, 38, 28, 14);
-            c.fillStyle = '#8b2020'; c.fillRect(28, 30, 2, 8);
-            c.fillStyle = '#4f555c'; c.fillRect(14, 50, 44, 22);
-        } else if (sec === 'verbirz') {
-            c.fillStyle = '#220e0e'; c.fillRect(0, 0, 72, 72);
-            c.fillStyle = '#7a7d82'; c.beginPath(); c.arc(36, 28, 15, 0, Math.PI*2); c.fill();
-            c.fillStyle = '#d4a379'; c.beginPath(); c.arc(36, 29, 10, 0, Math.PI*2); c.fill();
-            c.fillStyle = '#a82020'; c.fillRect(14, 44, 44, 28);
-            c.fillStyle = '#ffd700'; c.lineWidth = 2; c.strokeRect(14, 44, 44, 28);
-            c.fillStyle = '#fff'; c.fillRect(30, 52, 12, 12);
-            c.fillStyle = '#fff'; c.fillRect(34, 48, 6, 4);
-        } else if (sec === 'quests') {
-            c.fillStyle = '#1f160e'; c.fillRect(0, 0, 72, 72);
-            c.fillStyle = '#d9c6a3'; c.fillRect(12, 10, 48, 52);
-            c.strokeStyle = '#5a3d24'; c.lineWidth = 2; c.strokeRect(12, 10, 48, 52);
-            c.fillStyle = '#4a3b2c';
-            c.fillRect(18, 20, 36, 2); c.fillRect(18, 26, 32, 2); c.fillRect(18, 32, 36, 2);
-            c.fillStyle = '#8f1d1d'; c.beginPath(); c.arc(36, 50, 9, 0, Math.PI*2); c.fill();
+        const spriteMap: Record<string, { url: string; sx: number; sy: number; sw: number; sh: number }> = {
+            host:    { url: 'sprites/npc_host.png',    sx: 18,  sy: 4,   sw: 126, sh: 126 },
+            verbirz: { url: 'sprites/npc_verbirz.png', sx: 22,  sy: 0,   sw: 128, sh: 128 },
+            clinic:  { url: 'sprites/npc_clinic.png',  sx: 175, sy: 132, sw: 135, sh: 135 },
+            mercs:   { url: 'sprites/npc_mercs.png',   sx: 105, sy: 5,   sw: 145, sh: 145 },
+            quests:  { url: 'sprites/npc_quests.png',  sx: 20,  sy: 15,  sw: 200, sh: 200 }
+        };
+
+        const cfg = spriteMap[sec];
+        if (!cfg) return;
+
+        let img = CanvasRendererView.sharedSprites[sec];
+        if (!img) {
+            img = new Image();
+            img.src = cfg.url;
+            CanvasRendererView.sharedSprites[sec] = img;
+        }
+
+        const renderPortrait = () => {
+            const targetCv = document.getElementById('npc-avatar') as HTMLCanvasElement | null;
+            if (!targetCv) return;
+            const tc = targetCv.getContext('2d')!;
+            tc.fillStyle = '#18100a';
+            tc.fillRect(0, 0, 72, 72);
+            tc.drawImage(img, cfg.sx, cfg.sy, cfg.sw, cfg.sh, 2, 2, 68, 68);
+        };
+
+        if (img.complete && img.naturalWidth > 0) {
+            renderPortrait();
+        } else {
+            img.onload = renderPortrait;
         }
     }
 }

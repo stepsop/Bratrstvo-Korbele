@@ -18,7 +18,7 @@ function bootstrapGame(): void {
     const state = new GameStateModel();
 
     // 2. Инициализация Представлений (Views)
-    const canvasView = new CanvasRendererView('view');
+    const canvasView = new CanvasRendererView('view', state.guildHotspots);
     const topBarView = new TopStatsBarView();
     const squadModalView = new SquadAndHeroModalView();
     const npcModalView = new GuildNpcModalView();
