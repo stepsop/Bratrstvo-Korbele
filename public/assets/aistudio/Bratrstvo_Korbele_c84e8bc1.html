@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Bratrstvo Korbele: Богемия</title>
+<meta name="description" content="2D RPG и Auto-battler игра в сеттинге средневековой Богемии." />
+<meta property="og:title" content="Bratrstvo Korbele: Богемия" />
+<meta property="og:description" content="2D RPG и Auto-battler игра в сеттинге средневековой Богемии." />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary_large_image" />
 <style>
     * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
     body {
@@ -70,34 +75,144 @@
     .btn-psakrev { background: #6b3e12; border-color: #ffae00; color: #ffe699; }
     .btn-sec { border-style: dashed; font-size: 11px; padding: 6px; }
 
-    /* Модальное окно Информации об отряде, Экипировки и Ветки Талантов */
+    /* Компактные модальные окна без прокрутки (в одно окно) */
     #modal-overlay {
         display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0, 0, 0, 0.85); z-index: 50;
-        padding: 16px; overflow-y: auto;
+        padding: 8px; overflow: hidden;
     }
-    .modal-box {
-        border: 2px solid #c69c6d; background: #1c130d; padding: 12px;
-        max-width: 660px; margin: 0 auto;
+    .modal-box, .npc-dialog-box {
+        border: 2px solid #c69c6d; background: #1a120b; padding: 8px 10px;
+        max-width: 680px; width: 100%; margin: 0 auto;
+        box-shadow: 0 0 25px rgba(0,0,0,0.85);
     }
     .modal-header {
         display: flex; justify-content: space-between; align-items: center;
-        border-bottom: 2px solid #7a5230; padding-bottom: 8px; margin-bottom: 10px;
-        color: #ffd700; font-size: 15px; font-weight: bold;
+        border-bottom: 1px solid #7a5230; padding-bottom: 4px; margin-bottom: 6px;
+        color: #ffd700; font-size: 13px; font-weight: bold;
+    }
+    .hero-grid {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 5px;
     }
     .hero-card-row {
-        border: 1px solid #6b4c30; background: #120c08; padding: 8px;
-        margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;
-        font-size: 12px;
+        border: 1px solid #6b4c30; background: #120c08; padding: 5px 8px;
+        margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;
+        font-size: 11px; gap: 6px;
     }
-    .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
-    .panel-sec { border: 1px solid #5c4028; padding: 8px; background: #110b07; font-size: 12px; }
-    .panel-sec h4 { margin: 0 0 6px 0; color: #ffd700; border-bottom: 1px dashed #5c4028; padding-bottom: 4px; }
-    .talent-node {
-        border: 1px solid #8c6239; padding: 6px; margin-bottom: 6px;
-        background: #1f150e; display: flex; justify-content: space-between; align-items: center;
+    .grid-2col { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 8px; margin-top: 4px; }
+    .panel-sec { border: 1px solid #5c4028; padding: 6px 8px; background: #110b07; font-size: 11px; }
+    .panel-sec h4 { margin: 0 0 5px 0; color: #ffd700; border-bottom: 1px dashed #5c4028; padding-bottom: 3px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; }
+    .panel-sec p { margin: 3px 0; }
+    /* Статы и описания */
+    .stat-pills-row { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 5px; }
+    .stat-pill {
+        flex: 1; min-width: 52px; border: 1px solid #6b4c30; background: #1a120b;
+        padding: 3px 4px; text-align: center; cursor: pointer; font-size: 10px;
     }
-    .talent-node.unlocked { border-color: #66ff66; background: #132615; }
+    .stat-pill:hover, .stat-pill.active { border-color: #ffd700; background: #2b1d11; }
+    /* Кукла персонажа (RPG Paper Doll) — увеличенное окно героя */
+    .doll-wrap {
+        display: grid; grid-template-columns: 1fr 112px 1fr; gap: 6px;
+        align-items: center; background: #0c0806; border: 1px solid #4a3520;
+        padding: 6px; margin-bottom: 5px;
+    }
+    .doll-figure-box {
+        width: 112px; height: 116px; border: 2px solid #8c6239; background: radial-gradient(circle, #2b1d12 0%, #0d0906 85%);
+        display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;
+        box-shadow: inset 0 0 12px rgba(0,0,0,0.8);
+    }
+    .rpg-slot {
+        border: 1px solid #6b4c30; background: #18100a; padding: 5px 6px;
+        cursor: pointer; font-size: 10px; min-height: 46px; display: flex;
+        flex-direction: column; justify-content: center; position: relative;
+    }
+    .rpg-slot:hover, .rpg-slot.selected { border-color: #ffd700; background: #2c1e12; box-shadow: inset 0 0 6px rgba(255,215,0,0.25); }
+    .rpg-slot-label { font-size: 9px; color: #9c8265; text-transform: uppercase; }
+    .rpg-slot-item { font-weight: bold; color: #f0e6d2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .skill-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 5px; }
+    .skill-cell {
+        border: 1px solid #6b4c30; background: #16100a; padding: 4px 5px;
+        font-size: 10px; cursor: pointer; text-align: center; min-height: 32px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .skill-cell:hover, .skill-cell.selected { border-color: #ffd700; background: #2c1e12; }
+    .inspector-box {
+        border: 1px solid #7a5230; background: #16100b; padding: 5px 7px;
+        min-height: 44px; display: flex; flex-direction: column; justify-content: center;
+        gap: 4px; font-size: 10px; color: #dec8ad;
+    }
+    /* Ветка талантов в стиле старого WoW */
+    .wow-tree {
+        background: radial-gradient(circle at center, #21160e 0%, #0e0906 100%);
+        border: 1px solid #5c4028; padding: 6px; margin-bottom: 5px;
+    }
+    .wow-tier-row {
+        display: grid; grid-template-columns: 38px 1fr 1fr; gap: 8px; align-items: center;
+    }
+    .wow-tier-label { font-size: 9px; color: #9c8265; font-weight: bold; text-transform: uppercase; }
+    .wow-connector-row {
+        display: grid; grid-template-columns: 38px 1fr 1fr; gap: 8px;
+        text-align: center; color: #7a5230; font-size: 10px; line-height: 10px; margin: 2px 0;
+    }
+    .wow-node {
+        border: 2px solid #4a3828; background: #140e09; padding: 4px 6px;
+        cursor: pointer; position: relative; display: flex; align-items: center; gap: 5px;
+        font-size: 10px; min-height: 34px;
+    }
+    .wow-node.available { border-color: #8c6b3f; background: #1d140c; }
+    .wow-node.unlocked { border-color: #ffd700; background: #2e2010; box-shadow: 0 0 8px rgba(255,215,0,0.3); }
+    .wow-node.selected { outline: 1px dashed #fff; }
+    .wow-node.locked { opacity: 0.55; }
+    .wow-node-icon {
+        width: 22px; height: 22px; border: 1px solid #7a5230; background: #0c0806;
+        display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0;
+    }
+    .wow-node-rank {
+        position: absolute; bottom: 1px; right: 3px; font-size: 9px;
+        background: #000; padding: 0 3px; border: 1px solid #5c4028; color: #ffd700;
+    }
+    /* Нижняя панель Состояния (Травмы, Дебаффы, Пассивки) */
+    .status-bottom-panel {
+        margin-top: 6px; border: 1px solid #6b4c30; background: #110b07; padding: 5px 8px;
+        font-size: 10px;
+    }
+    .status-badges-row { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; margin-top: 3px; }
+    .status-badge {
+        border: 1px solid #5c4028; padding: 2px 6px; cursor: pointer; background: #1a120c; font-size: 10px;
+    }
+    .status-badge.debuff { border-color: #cc4444; background: #2b1111; color: #ff9999; }
+    .status-badge.passive { border-color: #b58c5e; background: #24190e; color: #ffd700; }
+    .status-badge.healthy { border-color: #2e6b34; background: #112614; color: #88ff88; }
+    .npc-header-flex {
+        display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #7a5230;
+        padding-bottom: 6px; margin-bottom: 6px;
+    }
+    .npc-avatar-canvas {
+        width: 48px; height: 48px; border: 2px solid #ffd700; background: #0c0806;
+        image-rendering: pixelated; flex-shrink: 0;
+    }
+    .npc-quote-block {
+        flex: 1; font-size: 11px; line-height: 1.25; color: #f0e6d2;
+    }
+    .npc-quote-block h3 { margin: 0 0 2px 0; color: #ffd700; font-size: 13px; }
+    .npc-quote-speech {
+        font-style: italic; color: #dec8ad; background: #120c08; padding: 4px 8px;
+        border-left: 3px solid #b58c5e; border-radius: 2px;
+    }
+    .squad-section-title {
+        font-size: 11px; font-weight: bold; color: #ffd700; margin: 4px 0;
+        padding-bottom: 2px; border-bottom: 1px dashed #7a5230; display: flex; justify-content: space-between;
+    }
+    .campaign-card {
+        border: 1px solid #7a5230; background: #130c08; padding: 6px 8px; margin-bottom: 6px;
+    }
+    .campaign-card.selected { border-color: #ffd700; background: #24160d; }
+    .badge-risk {
+        font-size: 10px; font-weight: bold; padding: 1px 5px; border-radius: 3px; display: inline-block;
+    }
+    .risk-low { background: #1b4d24; color: #88ff88; }
+    .risk-med { background: #5c4714; color: #ffdd66; }
+    .risk-high { background: #591b1b; color: #ff8888; }
 </style>
 </head>
 <body>
@@ -105,11 +220,10 @@
 <div id="game-container">
     <div id="stats-bar">
         <div class="stat-box" id="st-gold">Гроши: 60</div>
-        <div class="stat-box" id="st-beer">Пиво (1d10): 3</div>
-        <div class="stat-box" id="st-pots">Горшки (1d20): 1</div>
-        <div class="stat-box" id="st-herbs">Травы: 0/5</div>
+        <div class="stat-box" id="st-squad">Отряд: 3/5</div>
+        <div class="stat-box" id="st-reserve">Резерв: 0/15</div>
         <div class="stat-box" id="st-cycle">Цикл: 1</div>
-        <button class="btn-top-squad" onclick="openSquadModal()">🛡️ ОТРЯД / ТАЛАНТЫ</button>
+        <button class="btn-top-squad" onclick="openSquadModal()">🛡️ ОТРЯД</button>
     </div>
     
     <div id="viewport-container">
@@ -133,11 +247,35 @@ const controlsEl = document.getElementById('controls');
 const modalOverlay = document.getElementById('modal-overlay');
 const modalContent = document.getElementById('modal-content');
 
-// Опционально: если в папке лежит картинка таверны guild_bg.png, игра подгрузит и её!
+// Подгрузка фона таверны guild_bg.png с автоматической очисткой запеченных надписей под экран Android
 const bgImage = new Image();
 let bgLoaded = false;
-bgImage.onload = () => { bgLoaded = true; };
-bgImage.src = 'guild_bg.png'; // Также отрисовываем наш детальный пиксель-арт таверны прямо на Canvas!
+const cleanBgCanvas = document.createElement('canvas');
+const cleanBgCtx = cleanBgCanvas.getContext('2d');
+
+bgImage.onload = () => {
+    const W = bgImage.naturalWidth || 1200;
+    const H = bgImage.naturalHeight || 896;
+    cleanBgCanvas.width = W;
+    cleanBgCanvas.height = H;
+    cleanBgCtx.drawImage(bgImage, 0, 0, W, H);
+
+    // Автоматически перекрываем старые статичные надписи текстурой окружения,
+    // чтобы надписи всплывали ТОЛЬКО динамически при наведении/касании
+    const sx = W / 1200, sy = H / 896;
+    cleanBgCtx.drawImage(bgImage, 320*sx, 14*sy, 80*sx, 75*sy, 152*sx, 6*sy, 82*sx, 80*sy);
+    cleanBgCtx.drawImage(bgImage, 320*sx, 14*sy, 80*sx, 75*sy, 234*sx, 6*sy, 80*sx, 80*sy);
+    cleanBgCtx.drawImage(bgImage, 480*sx, 38*sy, 134*sx, 52*sy, 616*sx, 38*sy, 134*sx, 52*sy);
+    cleanBgCtx.drawImage(bgImage, 966*sx, 80*sy, 110*sx, 70*sy, 966*sx, 152*sy, 112*sx, 80*sy);
+    cleanBgCtx.drawImage(bgImage, 966*sx, 80*sy, 110*sx, 70*sy, 1078*sx, 152*sy, 110*sx, 80*sy);
+    cleanBgCtx.drawImage(bgImage, 40*sx, 550*sy, 228*sx, 26*sy, 40*sx, 579*sy, 228*sx, 25*sy);
+    cleanBgCtx.drawImage(bgImage, 40*sx, 630*sy, 228*sx, 26*sy, 40*sx, 604*sy, 228*sx, 25*sy);
+    cleanBgCtx.drawImage(bgImage, 520*sx, 414*sy, 94*sx, 42*sy, 1017*sx, 414*sy, 96*sx, 42*sy);
+    cleanBgCtx.drawImage(bgImage, 944*sx, 372*sy, 73*sx, 24*sy, 944*sx, 414*sy, 73*sx, 34*sy);
+
+    bgLoaded = true;
+};
+bgImage.src = 'guild_bg.png';
 
 function roll(sides) { return Math.floor(Math.random() * sides) + 1; }
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
@@ -254,6 +392,8 @@ const state = {
     pots: 1,       // Штурмовой горшок 1d20
     herbs: 0,      // Травы Тадеуша (0/5)
     cycle: 1,
+    squadMax: 5,
+    reserveMax: 15,
     questsDone: 0,
     spareEquip: [
         { name: 'Ржавый корд', slot: 'weapon', atk: 2, armor: 0, block: 0 },
@@ -267,6 +407,7 @@ const state = {
             cls: 'Шляхта',
             sprite: 'szlachta',
             color: '#e6c280',
+            inSquad: true,
             lvl: 1, exp: 0, talentPts: 1,
             hp: 28, maxHp: 28, tempHp: 0,
             atkBonus: 0,
@@ -293,6 +434,7 @@ const state = {
             cls: 'Святоша',
             sprite: 'monk',
             color: '#c2996b',
+            inSquad: true,
             lvl: 1, exp: 0, talentPts: 1,
             hp: 25, maxHp: 25, tempHp: 0,
             atkBonus: 0,
@@ -319,6 +461,7 @@ const state = {
             cls: 'Мушкетер',
             sprite: 'musketeer',
             color: '#7aa3cc',
+            inSquad: true,
             lvl: 1, exp: 0, talentPts: 1,
             hp: 22, maxHp: 22, tempHp: 0,
             atkBonus: 0,
@@ -475,11 +618,69 @@ function addParticles(x, y, color = '#fff', count = 14) {
 }
 
 function updateStatsUI() {
+    let squadCount = state.party.filter(h => h.inSquad && h.status !== 'dead').length;
+    let reserveCount = state.party.filter(h => !h.inSquad && h.status !== 'dead').length;
     document.getElementById('st-gold').innerText = `Гроши: ${state.gold}`;
-    document.getElementById('st-beer').innerText = `Пиво (1d10): ${state.beer}`;
-    document.getElementById('st-pots').innerText = `Горшки (1d20): ${state.pots}`;
-    document.getElementById('st-herbs').innerText = `Травы: ${state.herbs}/5`;
+    document.getElementById('st-squad').innerText = `Отряд: ${squadCount}/5`;
+    document.getElementById('st-reserve').innerText = `Резерв: ${reserveCount}/15`;
     document.getElementById('st-cycle').innerText = `Цикл: ${state.cycle}`;
+}
+
+// ================= ОТРИСОВКА ПОРТРЕТОВ НПС В ДИАЛОГОВЫХ ОКНАХ =================
+function drawNpcAvatar(sec) {
+    const cv = document.getElementById('npc-avatar');
+    if (!cv) return;
+    const c = cv.getContext('2d');
+    c.clearRect(0, 0, 72, 72);
+
+    if (sec === 'host') {
+        // Хозяин корчмы с золотым зубом и кружкой пива
+        c.fillStyle = '#26180f'; c.fillRect(0, 0, 72, 72);
+        c.fillStyle = '#4a2f18'; c.fillRect(16, 38, 40, 34);
+        c.fillStyle = '#e0c9aa'; c.fillRect(24, 38, 24, 34);
+        c.fillStyle = '#d4a379'; c.beginPath(); c.arc(36, 26, 16, 0, Math.PI*2); c.fill();
+        c.fillStyle = '#22150c'; c.fillRect(20, 10, 32, 10);
+        c.fillStyle = '#1a0d06'; c.fillRect(28, 28, 16, 6);
+        c.fillStyle = '#fff'; c.fillRect(29, 29, 4, 4);
+        c.fillStyle = '#ffd700'; c.fillRect(34, 29, 5, 5); // ЗОЛОТОЙ ЗУБ!
+        c.fillStyle = '#c69c6d'; c.fillRect(50, 44, 16, 22);
+        c.fillStyle = '#fff'; c.fillRect(50, 40, 16, 6);
+    } else if (sec === 'clinic') {
+        // Сестра милосердия в белом плате с красным крестом
+        c.fillStyle = '#1c1713'; c.fillRect(0, 0, 72, 72);
+        c.fillStyle = '#e8e2d8'; c.beginPath(); c.arc(36, 30, 24, 0, Math.PI*2); c.fill();
+        c.fillStyle = '#d4a379'; c.beginPath(); c.arc(36, 34, 13, 0, Math.PI*2); c.fill();
+        c.fillStyle = '#3a2b1f'; c.fillRect(30, 30, 3, 3); c.fillRect(39, 30, 3, 3);
+        c.fillStyle = '#b03030';
+        c.fillRect(34, 10, 4, 14); c.fillRect(29, 15, 14, 4);
+        c.fillStyle = '#9e9689'; c.fillRect(16, 52, 40, 20);
+    } else if (sec === 'mercs') {
+        // Наемный латник в шлеме со шрамом
+        c.fillStyle = '#161311'; c.fillRect(0, 0, 72, 72);
+        c.fillStyle = '#6b7278'; c.beginPath(); c.arc(36, 26, 18, 0, Math.PI, true); c.fill();
+        c.fillRect(14, 24, 44, 6);
+        c.fillStyle = '#d4a379'; c.fillRect(22, 28, 28, 22);
+        c.fillStyle = '#3a1f18'; c.fillRect(22, 38, 28, 14);
+        c.fillStyle = '#8b2020'; c.fillRect(28, 30, 2, 8);
+        c.fillStyle = '#4f555c'; c.fillRect(14, 50, 44, 22);
+    } else if (sec === 'verbirz') {
+        // Королевский Вербовщик в табарде со львом Богемии
+        c.fillStyle = '#220e0e'; c.fillRect(0, 0, 72, 72);
+        c.fillStyle = '#7a7d82'; c.beginPath(); c.arc(36, 28, 15, 0, Math.PI*2); c.fill();
+        c.fillStyle = '#d4a379'; c.beginPath(); c.arc(36, 29, 10, 0, Math.PI*2); c.fill();
+        c.fillStyle = '#a82020'; c.fillRect(14, 44, 44, 28);
+        c.fillStyle = '#ffd700'; c.lineWidth = 2; c.strokeRect(14, 44, 44, 28);
+        c.fillStyle = '#fff'; c.fillRect(30, 52, 12, 12);
+        c.fillStyle = '#fff'; c.fillRect(34, 48, 6, 4);
+    } else if (sec === 'quests') {
+        // Доска объявлений со свитками
+        c.fillStyle = '#1f160e'; c.fillRect(0, 0, 72, 72);
+        c.fillStyle = '#d9c6a3'; c.fillRect(12, 10, 48, 52);
+        c.strokeStyle = '#5a3d24'; c.lineWidth = 2; c.strokeRect(12, 10, 48, 52);
+        c.fillStyle = '#4a3b2c';
+        c.fillRect(18, 20, 36, 2); c.fillRect(18, 26, 32, 2); c.fillRect(18, 32, 36, 2);
+        c.fillStyle = '#8f1d1d'; c.beginPath(); c.arc(36, 50, 9, 0, Math.PI*2); c.fill();
+    }
 }
 
 // ================= ОКНО ИНФОРМАЦИИ ОБ ОТРЯДЕ, ЭКИПИРОВКИ И ВЕТКИ ТАЛАНТОВ =================
@@ -497,94 +698,522 @@ function closeSquadModal() {
 }
 
 function renderSquadListModal() {
-    let rows = state.party.map(h => {
+    let aliveHeroes = state.party.filter(h => h.status !== 'dead');
+    let useGrid = aliveHeroes.length > 4 ? 'hero-grid' : '';
+
+    let cardsHtml = aliveHeroes.map(h => {
         let injCount = h.injuries.length;
-        let injText = injCount > 0 ? `<span class="hl-red">Травмы (${injCount}): ${h.injuries.join(', ')}</span>` : `<span class="hl-green">Травм нет (0)</span>`;
-        let stBadge = h.status === 'ready' ? 'В строю' : (h.status === 'war' ? `Война (${h.timer}ц)` : (h.status === 'clinic' ? `Палаты (${h.timer}ц)` : 'МЕРТВ'));
+        let injText = injCount > 0 ? `<span class="hl-red">Травмы: ${h.injuries.join(', ')}</span>` : `<span class="hl-green">Травм нет</span>`;
+        let stBadge = h.status === 'ready' ? 'В строю' : (h.status === 'war' ? `Война (${h.timer}ц)` : `Палаты (${h.timer}ц)`);
+
         return `
-            <div class="hero-card-row">
-                <div>
-                    <b class="hl-gold">${h.name}</b> | Класс: <b>${h.cls}</b> (Ур. ${h.lvl}) | HP: ${h.hp}/${h.maxHp} | Статус: ${stBadge}<br>
+            <div class="hero-card-row" style="margin-bottom:${useGrid ? '0' : '4px'};">
+                <div style="flex:1;">
+                    <b class="hl-gold">${h.name}</b> | <b>${h.cls}</b> (Ур.${h.lvl}) | HP: ${h.hp}/${h.maxHp} | <i>${stBadge}</i><br>
                     ${injText} | Очки талантов: <span class="hl-gold">${h.talentPts}</span>
                 </div>
-                <button style="max-width:160px;" onclick="renderHeroDetailModal('${h.id}')">Экипировка / Таланты</button>
+                <button style="max-width:125px; font-size:10px; padding:5px;" onclick="renderHeroDetailModal('${h.id}')">ТАЛАНТЫ / ВЕЩИ</button>
             </div>
         `;
     }).join('');
 
     modalContent.innerHTML = `
-        <div class="modal-header">
-            <span>🛡️ ИНФОРМАЦИЯ ОБ ОТРЯДЕ BRATRSTVO KORBELE</span>
-            <button style="max-width:100px;" onclick="closeSquadModal()">ЗАКРЫТЬ [X]</button>
+        <div style="display:flex; justify-content:flex-end; margin-bottom:5px;">
+            <button style="max-width:95px; padding:4px 6px; font-size:10px;" onclick="closeSquadModal()">✕ ЗАКРЫТЬ</button>
         </div>
-        <div style="margin-bottom:8px; font-size:12px; color:#ccc;">
-            Выбери бойца, чтобы посмотреть его экипировку, травмы и прокачать ветку талантов:
-        </div>
-        ${rows}
+        <div class="${useGrid}">${cardsHtml}</div>
     `;
+}
+
+// Состояние выбранных элементов в окне героя (стат/предмет, талант, травма/пассивка)
+let heroUiState = {
+    heroId: null,
+    leftInspect: { type: 'stat', key: 'armor' }, // 'stat' | 'equipped' | 'bag'
+    selectedTalentId: null,
+    selectedStatusKey: 'passive'
+};
+
+const STAT_DESCRIPTIONS = {
+    hp: (h) => `❤️ <b>Здоровье (${h.hp}/${h.maxHp}):</b> запас жизни бойца. Если упадет до 0, герой выбывает до конца боя и получает травму.`,
+    armor: (h) => `🛡️ <b>Броня (${h.armor}):</b> снижает входящий урон от каждого обычного удара (на ${Math.floor(h.armor/2)}) и супер-удара врага (на ${h.armor}).`,
+    block: (h) => `🔰 <b>Блок (${h.blockChance}%):</b> шанс полностью отразить смертоносный СУПЕР-УДАР противника без потери здоровья.`,
+    atk: (h) => `⚔️ <b>Бонус урона (+${h.atkBonus}):</b> прибавляется к каждому броску кубика атаки и боевых навыков героя.`,
+    init: (h) => `⚡ <b>Инициатива (${h.initBase} + 1d10):</b> определяет очередность хода в начале каждого боя.`
+};
+
+const CLASS_PASSIVES = {
+    'Шляхта': {
+        title: '🍺 Пассивка: Непросыхаемый алкаш',
+        desc: '50% шанс спьяну промахнуться (0 урона врагу), но и 50% шанс случайно увернуться от любого удара врага (0 урона герою).'
+    },
+    'Святоша': {
+        title: '🌿 Пассивка: Знаток трав',
+        desc: '10% шанс в начале любого хода в бою найти целебную траву. Из 5 трав прямо в бою варит 1d4 бутылок пива (1d10 HP).'
+    },
+    'Мушкетер': {
+        title: '🔫 Пассивка: Внезапный Пистоль',
+        desc: '20% шанс в начале своего хода дополнительно выстрелить из пистоля (1d10 урона) в случайного врага.'
+    }
+};
+
+function getInjuryDescription(inj) {
+    if (inj.includes('Похмелье')) return `🩸 <b>${inj}:</b> голова гудит после корчмы (-2 Макс. HP). Снимается у Сестры Берты в Палатах врачебных.`;
+    if (inj.includes('ранение')) return `🩸 <b>${inj}:</b> старая колотая рана (-2 Макс. HP). Требует лечения в Палатах врачебных.`;
+    if (inj.includes('цепом')) return `🩸 <b>${inj}:</b> контузия после гуситского цепа. Снижает боеготовность до визита в Палаты врачебные.`;
+    return `🩸 <b>${inj}:</b> боевая травма. Обратитесь в Палаты врачебные для исцеления.`;
+}
+
+function parseEquipObject(raw, slot) {
+    if (!raw) return null;
+    if (typeof raw === 'object') return raw;
+    let atk = 0, armor = 0, block = 0;
+    let mAtk = raw.match(/\+(\d+)\s*Ур/i); if (mAtk) atk = parseInt(mAtk[1], 10);
+    let mArm = raw.match(/\+(\d+)\s*Бр/i); if (mArm) armor = parseInt(mArm[1], 10);
+    let mBlk = raw.match(/\+(\d+)%\s*Блок/i); if (mBlk) block = parseInt(mBlk[1], 10);
+    let cleanName = raw.replace(/\s*\(.*?\)\s*/g, '').trim();
+    return {
+        name: cleanName,
+        slot: slot,
+        atk: atk,
+        armor: armor,
+        block: block,
+        desc: `Снаряжение слота «${slot === 'weapon' ? 'Оружие' : (slot === 'armor' ? 'Доспех' : 'Талисман')}». Дает: +${atk} Урон, +${armor} Броня, +${block}% Блок.`
+    };
+}
+
+function buildWowTalentsForHero(h) {
+    if (h.wowTreeReady) return;
+    const prevUnlocked = (h.talents || []).filter(t => t.unlocked).length;
+
+    if (h.cls === 'Шляхта') {
+        h.talents = [
+            { id: `${h.id}_t1_l`, tier: 1, col: 1, icon: '🗡️', short: 'Тяжелая сабля', name: 'Тяжелая сабля (+1 Урон, +2 HP)', desc: 'Шляхтич берет саблю потяжелее: +1 к урону всех атак и +2 Макс. HP.', unlocked: false, effect: (u) => { u.atkBonus += 1; u.maxHp += 2; u.hp += 2; } },
+            { id: `${h.id}_t1_r`, tier: 1, col: 2, icon: '🍺', short: 'Крепкая башка', name: 'Крепкая башка (+6 Макс. HP, +5% Блок)', desc: 'Закаленный в кабацких драках череп: +6 Макс. HP и +5% к шансу блока.', unlocked: false, effect: (u) => { u.maxHp += 6; u.hp += 6; u.blockChance += 5; } },
+            { id: `${h.id}_t2_l`, tier: 2, col: 1, icon: '💥', short: 'Широкий размах', name: 'Широкий размах (+2 к урону)', desc: 'Мощный взмах плашмя и клинком: +2 к урону всех способностей.', unlocked: false, effect: (u) => { u.atkBonus += 2; } },
+            { id: `${h.id}_t2_r`, tier: 2, col: 2, icon: '🛡️', short: 'Панский кунтуш', name: 'Панский кунтуш (+1 Броня, +4 HP)', desc: 'Плотный подбитый кунтуш гасит удары: +1 Броня и +4 Макс. HP.', unlocked: false, effect: (u) => { u.armor += 1; u.maxHp += 4; u.hp += 4; } },
+            { id: `${h.id}_t3_l`, tier: 3, col: 1, icon: '🔥', short: 'Шляхетский гонор', name: 'Шляхетский гонор (+3 Урон, +2 Иниц.)', desc: 'Яростный натиск в первых рядах: +3 к урону и +2 к Инициативе.', unlocked: false, effect: (u) => { u.atkBonus += 3; u.initBase += 2; } },
+            { id: `${h.id}_t3_r`, tier: 3, col: 2, icon: '🏰', short: 'Кураж шляхтича', name: 'Кураж шляхтича (+1 Броня, +10% Блок)', desc: 'Непробиваемая стойка фехтовальщика: +1 Броня и +10% к шансу блока.', unlocked: false, effect: (u) => { u.armor += 1; u.blockChance += 10; } }
+        ];
+    } else if (h.cls === 'Святоша') {
+        h.talents = [
+            { id: `${h.id}_t1_l`, tier: 1, col: 1, icon: '🪵', short: 'Карающая длань', name: 'Карающая длань (+1 Урон, +2 Иниц.)', desc: 'Уверенный удар дубиной по еретикам: +1 к урону и +2 к Инициативе.', unlocked: false, effect: (u) => { u.atkBonus += 1; u.initBase += 2; } },
+            { id: `${h.id}_t1_r`, tier: 1, col: 2, icon: '🌿', short: 'Травник ордена', name: 'Травник ордена (+6 Макс. HP)', desc: 'Целебные настои укрепляют тело: +6 к максимальному и текущему HP.', unlocked: false, effect: (u) => { u.maxHp += 6; u.hp += 6; } },
+            { id: `${h.id}_t2_l`, tier: 2, col: 1, icon: '⚒️', short: 'Тяжелое кадило', name: 'Тяжелое кадило (+2 к урону)', desc: 'Окованное железом оружие крушит шлемы: +2 к урону.', unlocked: false, effect: (u) => { u.atkBonus += 2; } },
+            { id: `${h.id}_t2_r`, tier: 2, col: 2, icon: '🍺', short: 'Хмельная молитва', name: 'Хмельная молитва (+5 HP, +5% Блок)', desc: 'Глоток монастырского пива укрепляет дух: +5 Макс. HP и +5% Блок.', unlocked: false, effect: (u) => { u.maxHp += 5; u.hp += 5; u.blockChance += 5; } },
+            { id: `${h.id}_t3_l`, tier: 3, col: 1, icon: '⚡', short: 'Гнев праведника', name: 'Гнев праведника (+3 Урон, +4 HP)', desc: 'Сокрушительные удары во имя братства: +3 к урону и +4 Макс. HP.', unlocked: false, effect: (u) => { u.atkBonus += 3; u.maxHp += 4; u.hp += 4; } },
+            { id: `${h.id}_t3_r`, tier: 3, col: 2, icon: '🛡️', short: 'Благословенный щит', name: 'Благословенный щит (+1 Броня, +10% Блок)', desc: 'Небесная защита от вражеских цепов: +1 Броня и +10% к шансу блока.', unlocked: false, effect: (u) => { u.armor += 1; u.blockChance += 10; } }
+        ];
+    } else {
+        h.talents = [
+            { id: `${h.id}_t1_l`, tier: 1, col: 1, icon: '🔫', short: 'Крупная картечь', name: 'Крупная картечь (+2 к урону)', desc: 'Отборный порох и тяжелая дробь: +2 к урону выстрелов и кортика.', unlocked: false, effect: (u) => { u.atkBonus += 2; } },
+            { id: `${h.id}_t1_r`, tier: 1, col: 2, icon: '🧥', short: 'Плотный колет', name: 'Плотный колет (+5 HP, +5% Блок)', desc: 'Проклепанная кожа защищает стрелка: +5 Макс. HP и +5% Блок.', unlocked: false, effect: (u) => { u.maxHp += 5; u.hp += 5; u.blockChance += 5; } },
+            { id: `${h.id}_t2_l`, tier: 2, col: 1, icon: '🎯', short: 'Зоркий глаз', name: 'Зоркий глаз (+3 Иниц., +1 Урон)', desc: 'Мгновенная реакция и прицельный огонь: +3 Инициатива и +1 Урон.', unlocked: false, effect: (u) => { u.initBase += 3; u.atkBonus += 1; } },
+            { id: `${h.id}_t2_r`, tier: 2, col: 2, icon: '🤺', short: 'Гарда кортика', name: 'Гарда кортика (+8% Блок, +4 HP)', desc: 'Искусное парирование кортиком в ближнем бою: +8% Блок и +4 Макс. HP.', unlocked: false, effect: (u) => { u.blockChance += 8; u.maxHp += 4; u.hp += 4; } },
+            { id: `${h.id}_t3_l`, tier: 3, col: 1, icon: '💣', short: 'Двойной заряд', name: 'Двойной заряд (+3 Урон)', desc: 'Усиленный пороховой заряд пробивает любые латы: +3 к урону.', unlocked: false, effect: (u) => { u.atkBonus += 3; } },
+            { id: `${h.id}_t3_r`, tier: 3, col: 2, icon: '🛡️', short: 'Ветеран траншей', name: 'Ветеран траншей (+1 Броня, +10% Блок)', desc: 'Опытный мушкетер умеет укрыться от любого удара: +1 Броня и +10% Блок.', unlocked: false, effect: (u) => { u.armor += 1; u.blockChance += 10; } }
+        ];
+    }
+
+    for (let i = 0; i < prevUnlocked && i < h.talents.length; i++) {
+        h.talents[i].unlocked = true;
+    }
+    h.wowTreeReady = true;
+}
+
+function ensureHeroRpgData(h) {
+    if (!h.equipObj) {
+        h.equipObj = {
+            weapon: parseEquipObject(h.equip.weapon, 'weapon'),
+            armor: parseEquipObject(h.equip.armor, 'armor'),
+            trinket: parseEquipObject(h.equip.trinket, 'trinket')
+        };
+    }
+    buildWowTalentsForHero(h);
+}
+
+function getHeroSkillDetails(h) {
+    if (h.cls === 'Шляхта') {
+        return [
+            { key: 's1', icon: '💥', short: 'Атака плашмя', title: h.skill1Name, cd: `КД: ${h.maxCd1} х.`, desc: `Мощный круговой удар плашмя: бросает 1d10 (+${h.atkBonus} Ур) и равномерно распределяет урон по всем живым врагам.` },
+            { key: 's2', icon: '🗡️', short: 'Удар саблей', title: h.skill2Name, cd: 'Без КД', desc: `Базовый рубящий удар клинком по выбранной цели: наносит 1d4 (+${h.atkBonus} Ур) урона.` },
+            { key: 'pas', icon: '🍺', short: 'Алкаш (Пасс.)', title: 'Непросыхаемый алкаш (Пассивка)', cd: 'Пассивно', desc: '50% шанс спьяну промахнуться (0 урона врагу), но и 50% шанс случайно увернуться от любого удара врага (0 урона герою).' }
+        ];
+    } else if (h.cls === 'Святоша') {
+        return [
+            { key: 's1', icon: '🪵', short: 'Удар дубиной', title: h.skill1Name, cd: 'Без КД', desc: `Уверенный удар суковатой дубиной по еретику: наносит 1d4 (+${h.atkBonus} Ур) урона.` },
+            { key: 's2', icon: '🍺', short: 'Запить грехи', title: h.skill2Name, cd: `КД: ${h.maxCd2} х.`, desc: 'Исцеляет самого раненого союзника в отряде на 1d4 HP святым пенным напитком.' },
+            { key: 'pas', icon: '🌿', short: 'Травник (Пасс.)', title: 'Знаток трав (Пассивка)', cd: 'Пассивно', desc: '10% шанс в начале хода любого существа найти траву. Из 5 трав прямо в бою варит 1d4 бутылок пива (1d10 HP).' }
+        ];
+    } else {
+        return [
+            { key: 's1', icon: '🔫', short: 'Аркебуза', title: h.skill1Name, cd: `КД: ${h.maxCd1} х.`, desc: `Залп картечью на 1d10 (+${h.atkBonus} Ур) урона, который делится между основной целью и соседним врагом (с переносом избытка урона).` },
+            { key: 's2', icon: '🗡️', short: 'Кортик', title: h.skill2Name, cd: 'Без КД', desc: `Быстрый укол кортиком в ближнем бою: наносит 1d4 (+${h.atkBonus} Ур) урона по цели.` },
+            { key: 'pas', icon: '🎯', short: 'Пистоль (Пасс.)', title: 'Внезапный Пистоль (Пассивка)', cd: 'Пассивно', desc: `20% шанс в начале своего хода дополнительно выстрелить из пистоля на 1d10 (+${h.atkBonus} Ур) в случайного врага.` }
+        ];
+    }
+}
+
+function drawPaperDollFigure(h) {
+    const cv = document.getElementById('doll-canvas');
+    if (!cv) return;
+    const c = cv.getContext('2d');
+    c.clearRect(0, 0, cv.width, cv.height);
+
+    const cx = Math.floor(cv.width / 2);
+    const cy = Math.floor(cv.height / 2);
+
+    // Контур витрувианского/средневекового силуэта человека на фоне увеличенной куклы
+    c.strokeStyle = 'rgba(198, 156, 109, 0.28)';
+    c.lineWidth = 1.2;
+    c.beginPath(); c.arc(cx, cy, 44, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.moveTo(cx, 6); c.lineTo(cx, cv.height - 6); c.moveTo(8, cy); c.lineTo(cv.width - 8, cy); c.stroke();
+
+    // Силуэт тела воина
+    c.fillStyle = 'rgba(122, 82, 48, 0.25)';
+    c.fillRect(cx - 11, 12, 22, 18); // голова
+    c.fillRect(cx - 18, 32, 36, 36); // торс
+    c.fillRect(cx - 27, 34, 8, 30);  // левая рука
+    c.fillRect(cx + 19, 34, 8, 30);  // правая рука
+    c.fillRect(cx - 15, 70, 12, 28); // левая нога
+    c.fillRect(cx + 3, 70, 12, 28);  // правая нога
+
+    // Рисуем крупный пиксельный спрайт самого героя поверх силуэта (scale = 6)
+    const grid = SPRITES[h.sprite] || SPRITES.szlachta;
+    const scale = 6;
+    const sx = Math.floor(cx - (12 * scale) / 2);
+    const sy = Math.floor(cy - (12 * scale) / 2 + 2);
+    for (let r = 0; r < 12; r++) {
+        for (let col = 0; col < 12; col++) {
+            const ch = grid[r][col];
+            if (ch === ' ') continue;
+            if (ch === '#') c.fillStyle = h.color;
+            else if (ch === '.') c.fillStyle = '#ccc';
+            else if (ch === 'G') c.fillStyle = '#ffd700';
+            else if (ch === 'R') c.fillStyle = '#cc3333';
+            c.fillRect(sx + col * scale, sy + r * scale, scale, scale);
+        }
+    }
+}
+
+function isTalentTierUnlocked(h, tier) {
+    if (tier <= 1) return true;
+    return h.talents.some(t => t.tier === tier - 1 && t.unlocked);
 }
 
 function renderHeroDetailModal(heroId) {
     let h = state.party.find(p => p.id === heroId);
     if (!h) return;
+    ensureHeroRpgData(h);
 
-    let spareBtns = state.spareEquip.map((eq, idx) => {
-        return `<button class="btn-sec" onclick="equipItemOnHero('${h.id}', ${idx})">Надеть: ${eq.name} (+${eq.atk}Ур/+${eq.armor}Бр/+${eq.block}%Бл)</button>`;
+    if (heroUiState.heroId !== h.id) {
+        heroUiState.heroId = h.id;
+        heroUiState.leftInspect = { type: 'equipped', key: 'weapon' };
+        heroUiState.selectedTalentId = h.talents[0].id;
+        heroUiState.selectedStatusKey = h.injuries.length > 0 ? 'inj_0' : 'passive';
+    }
+
+    // 1. БЛОК СТАТОВ, УВЕЛИЧЕННОЙ КУКЛЫ И СПОСОБНОСТЕЙ ГЕРОЯ (СЛЕВА)
+    const statList = [
+        { key: 'hp', label: `❤️ HP: ${h.hp}/${h.maxHp}` },
+        { key: 'armor', label: `🛡️ Бр: ${h.armor}` },
+        { key: 'block', label: `🔰 Блок: ${h.blockChance}%` },
+        { key: 'atk', label: `⚔️ Урон: +${h.atkBonus}` },
+        { key: 'init', label: `⚡ Иниц: ${h.initBase}` }
+    ];
+    let statPillsHtml = statList.map(st => {
+        let isAct = heroUiState.leftInspect.type === 'stat' && heroUiState.leftInspect.key === st.key;
+        return `<div class="stat-pill ${isAct ? 'active' : ''}" onclick="selectHeroLeftInspect('${h.id}', 'stat', '${st.key}')"><b>${st.label}</b></div>`;
     }).join('');
-    if (!spareBtns) spareBtns = `<div style="color:#777;">Свободного снаряжения в сумке нет (купите у Хозяина или добудьте в бою)</div>`;
 
-    let talentsHtml = h.talents.map((t, idx) => {
+    const wItem = h.equipObj.weapon;
+    const aItem = h.equipObj.armor;
+    const tItem = h.equipObj.trinket;
+
+    const isSlotSel = (slot) => heroUiState.leftInspect.type === 'equipped' && heroUiState.leftInspect.key === slot;
+
+    // Способности героя вместо сумки отряда
+    const skills = getHeroSkillDetails(h);
+    let skillCellsHtml = skills.map(sk => {
+        let isSkSel = heroUiState.leftInspect.type === 'skill' && heroUiState.leftInspect.key === sk.key;
         return `
-            <div class="talent-node ${t.unlocked ? 'unlocked' : ''}">
-                <div>
-                    <b>Тир ${idx + 1}: ${t.name}</b><br>
-                    <span style="font-size:10px; color:#aaa;">${t.unlocked ? 'Изучено' : 'Требует 1 очко талантов'}</span>
-                </div>
-                ${t.unlocked
-                    ? `<span class="hl-green">✓ АКТИВЕН</span>`
-                    : `<button style="max-width:110px;" onclick="unlockTalent('${h.id}', '${t.id}')" ${h.talentPts <= 0 ? 'disabled' : ''}>Изучить (1)</button>`
-                }
+            <div class="skill-cell ${isSkSel ? 'selected' : ''}" onclick="selectHeroLeftInspect('${h.id}', 'skill', '${sk.key}')">
+                <b style="color:#ffd700;">${sk.icon} ${sk.short}</b>
+                <span style="font-size:9px; color:#9c8265;">${sk.cd}</span>
             </div>
         `;
     }).join('');
 
-    let injStr = h.injuries.length > 0 ? h.injuries.join(', ') : 'Здоров как бык (0)';
+    // Инспектор стата, выбранного слота экипировки (с выбором предметов для этого слота) или способности
+    let leftInspectorHtml = '';
+    if (heroUiState.leftInspect.type === 'stat') {
+        let fn = STAT_DESCRIPTIONS[heroUiState.leftInspect.key] || STAT_DESCRIPTIONS.armor;
+        leftInspectorHtml = `<div>${fn(h)}</div>`;
+    } else if (heroUiState.leftInspect.type === 'skill') {
+        let sk = skills.find(s => s.key === heroUiState.leftInspect.key) || skills[0];
+        leftInspectorHtml = `
+            <div>
+                <b class="hl-gold">${sk.icon} ${sk.title}</b> <span style="color:#9c8265;">[${sk.cd}]</span><br>
+                <span>${sk.desc}</span>
+            </div>
+        `;
+    } else if (heroUiState.leftInspect.type === 'equipped') {
+        let slot = heroUiState.leftInspect.key;
+        let item = h.equipObj[slot];
+        let slotTitle = slot === 'weapon' ? '🗡️ Оружие' : (slot === 'armor' ? '🛡️ Доспех' : '💍 Талисман');
+
+        // Доступные предметы из запаса именно для этого слота
+        let matchingItems = state.spareEquip
+            .map((eq, idx) => ({ eq, idx }))
+            .filter(x => x.eq.slot === slot);
+
+        let curItemHtml = item
+            ? `<div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                   <div><b class="hl-gold">${item.name}</b> <span style="color:#9c8265;">(${slotTitle})</span> — <b>+${item.atk || 0} Ур, +${item.armor || 0} Бр, +${item.block || 0}% Блок</b></div>
+                   <button style="max-width:70px; padding:2px 5px; font-size:9px;" onclick="unequipHeroSlot('${h.id}', '${slot}')">Снять</button>
+               </div>`
+            : `<div><b>${slotTitle}:</b> <span style="color:#888;">Слот пуст</span></div>`;
+
+        let availBtns = matchingItems.map(({ eq, idx }) => {
+            return `<button class="btn-sec" style="padding:3px 6px; font-size:9px; border-color:#ffd700;" onclick="equipItemOnHero('${h.id}', ${idx})">Надеть: ${eq.name} (+${eq.atk || 0}Ур/+${eq.armor || 0}Бр/+${eq.block || 0}%Бл)</button>`;
+        }).join('');
+
+        let availRow = availBtns
+            ? `<div class="btn-row" style="margin-top:2px;">${availBtns}</div>`
+            : `<div style="color:#756554; font-size:9px;">В арсенале нет других предметов для слота «${slotTitle}».</div>`;
+
+        leftInspectorHtml = `${curItemHtml}${availRow}`;
+    }
+
+    // 2. ВЕТКА ТАЛАНТОВ В СТИЛЕ СТАРОГО WOW (СПРАВА)
+    let wowTreeHtml = '';
+    for (let tier = 1; tier <= 3; tier++) {
+        let tierNodes = h.talents.filter(t => t.tier === tier);
+        let tierOpen = isTalentTierUnlocked(h, tier);
+
+        let nodesHtml = tierNodes.map(t => {
+            let stateCls = t.unlocked ? 'unlocked' : (tierOpen ? 'available' : 'locked');
+            let selCls = (heroUiState.selectedTalentId === t.id) ? 'selected' : '';
+            let rankTxt = t.unlocked ? '1/1' : '0/1';
+            return `
+                <div class="wow-node ${stateCls} ${selCls}" onclick="selectHeroTalentNode('${h.id}', '${t.id}')">
+                    <div class="wow-node-icon">${t.icon}</div>
+                    <div style="line-height:1.15; padding-right:16px;">
+                        <b style="color:${t.unlocked ? '#ffd700' : '#f0e6d2'};">${t.short}</b>
+                    </div>
+                    <span class="wow-node-rank">${rankTxt}</span>
+                </div>
+            `;
+        }).join('');
+
+        wowTreeHtml += `
+            <div class="wow-tier-row">
+                <div class="wow-tier-label">Тир ${tier}</div>
+                ${nodesHtml}
+            </div>
+        `;
+        if (tier < 3) {
+            let nextOpen = isTalentTierUnlocked(h, tier + 1);
+            let arrowCol = nextOpen ? '#ffd700' : '#5c4028';
+            wowTreeHtml += `
+                <div class="wow-connector-row" style="color:${arrowCol};">
+                    <div></div><div>│<br>▼</div><div>│<br>▼</div>
+                </div>
+            `;
+        }
+    }
+
+    let selTalent = h.talents.find(t => t.id === heroUiState.selectedTalentId) || h.talents[0];
+    let canLearnSel = selTalent && !selTalent.unlocked && h.talentPts > 0 && isTalentTierUnlocked(h, selTalent.tier);
+    let lockReason = '';
+    if (selTalent && !selTalent.unlocked) {
+        if (!isTalentTierUnlocked(h, selTalent.tier)) lockReason = `<span class="hl-red">(Нужен талант Тира ${selTalent.tier - 1})</span>`;
+        else if (h.talentPts <= 0) lockReason = `<span style="color:#888;">(Нет очков талантов)</span>`;
+    }
+
+    let talentInspectorHtml = selTalent ? `
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; width:100%;">
+            <div style="flex:1;">
+                <b class="hl-gold">${selTalent.icon} ${selTalent.name}</b> ${lockReason}<br>
+                <span>${selTalent.desc}</span>
+            </div>
+            ${selTalent.unlocked
+                ? `<span class="hl-green" style="font-size:10px; white-space:nowrap;">✓ ИЗУЧЕНО</span>`
+                : `<button style="max-width:90px; padding:4px; font-size:10px;" onclick="unlockTalent('${h.id}', '${selTalent.id}')" ${!canLearnSel ? 'disabled' : ''}>Изучить</button>`
+            }
+        </div>
+    ` : '';
+
+    // 3. НИЖНЯЯ ПАНЕЛЬ СОСТОЯНИЯ: ТРАВМЫ, ДЕБАФФЫ И ПАССИВКИ
+    let passiveInfo = CLASS_PASSIVES[h.cls] || CLASS_PASSIVES['Шляхта'];
+    let statusBadgesHtml = `
+        <div class="status-badge passive" onclick="selectHeroStatusBadge('${h.id}', 'passive')">
+            ${passiveInfo.title}
+        </div>
+    `;
+
+    if (h.injuries.length === 0) {
+        statusBadgesHtml += `
+            <div class="status-badge healthy" onclick="selectHeroStatusBadge('${h.id}', 'healthy')">
+                ✓ Здоров (Травм и дебаффов нет)
+            </div>
+        `;
+    } else {
+        h.injuries.forEach((inj, idx) => {
+            statusBadgesHtml += `
+                <div class="status-badge debuff" onclick="selectHeroStatusBadge('${h.id}', 'inj_${idx}')">
+                    🩸 Травма: ${inj}
+                </div>
+            `;
+        });
+    }
+
+    let statusDescHtml = '';
+    if (heroUiState.selectedStatusKey === 'passive') {
+        statusDescHtml = `<span class="hl-gold">${passiveInfo.title}:</span> ${passiveInfo.desc}`;
+    } else if (heroUiState.selectedStatusKey === 'healthy') {
+        statusDescHtml = `<span class="hl-green">Боец полностью здоров:</span> штрафов к характеристикам нет, готов к походу.`;
+    } else if (heroUiState.selectedStatusKey && heroUiState.selectedStatusKey.startsWith('inj_')) {
+        let iIdx = parseInt(heroUiState.selectedStatusKey.split('_')[1], 10);
+        let inj = h.injuries[iIdx] || h.injuries[0];
+        statusDescHtml = getInjuryDescription(inj || 'Боевая травма');
+    }
 
     modalContent.innerHTML = `
-        <div class="modal-header">
-            <span>⚔️ ${h.name} — ${h.cls} (Уровень ${h.lvl})</span>
-            <button style="max-width:140px;" onclick="renderSquadListModal()">← Ко всему отряду</button>
+        <div class="modal-header" style="margin-bottom:4px;">
+            <span>⚔️ ${h.name} — ${h.cls} (Ур.${h.lvl})</span>
+            <button style="max-width:95px; padding:3px 6px; font-size:10px;" onclick="renderSquadListModal()">← Назад</button>
         </div>
-        <div style="font-size:12px; margin-bottom:6px;">
-            HP: <b>${h.hp}/${h.maxHp}</b> | Броня (Поглощение): <b>${h.armor}</b> | Шанс блока: <b>${h.blockChance}%</b> | Бонус урона: <b>+${h.atkBonus}</b> | Травмы (${h.injuries.length}): <span class="hl-red">${injStr}</span>
-        </div>
+
         <div class="grid-2col">
+            <!-- ЛЕВАЯ КОЛОНКА: СТАТЫ + УВЕЛИЧЕННАЯ КУКЛА ГЕРОЯ + СПОСОБНОСТИ + ИНСПЕКТОР -->
             <div class="panel-sec">
-                <h4>🎽 ЭКИПИРОВКА ГЕРОЯ</h4>
-                <p>🗡️ <b>Оружие:</b> ${h.equip.weapon}</p>
-                <p>🛡️ <b>Доспех:</b> ${h.equip.armor}</p>
-                <p>💍 <b>Талисман:</b> ${h.equip.trinket}</p>
-                <h4 style="margin-top:10px;">🎒 СНАРЯЖЕНИЕ ОТРЯДА</h4>
-                <div class="btn-row">${spareBtns}</div>
+                <h4>
+                    <span>🎽 ЭКИПИРОВКА, СТАТЫ И НАВЫКИ</span>
+                    <span style="font-size:9px; color:#b58c5e; font-weight:normal;">(Выбери ячейку или навык)</span>
+                </h4>
+                <div class="stat-pills-row">${statPillsHtml}</div>
+
+                <div class="doll-wrap">
+                    <div class="rpg-slot ${isSlotSel('weapon') ? 'selected' : ''}" onclick="selectHeroLeftInspect('${h.id}', 'equipped', 'weapon')">
+                        <span class="rpg-slot-label">🗡️ Оружие</span>
+                        <span class="rpg-slot-item">${wItem ? wItem.name : 'Пусто'}</span>
+                    </div>
+
+                    <div class="doll-figure-box">
+                        <canvas id="doll-canvas" width="108" height="112"></canvas>
+                    </div>
+
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <div class="rpg-slot ${isSlotSel('armor') ? 'selected' : ''}" onclick="selectHeroLeftInspect('${h.id}', 'equipped', 'armor')">
+                            <span class="rpg-slot-label">🛡️ Доспех</span>
+                            <span class="rpg-slot-item">${aItem ? aItem.name : 'Пусто'}</span>
+                        </div>
+                        <div class="rpg-slot ${isSlotSel('trinket') ? 'selected' : ''}" onclick="selectHeroLeftInspect('${h.id}', 'equipped', 'trinket')">
+                            <span class="rpg-slot-label">💍 Талисман</span>
+                            <span class="rpg-slot-item">${tItem ? tItem.name : 'Пусто'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="font-size:10px; color:#ffd700; margin-bottom:3px; font-weight:bold;">⚡ СПОСОБНОСТИ ГЕРОЯ (Нажми для описания):</div>
+                <div class="skill-grid">${skillCellsHtml}</div>
+
+                <div class="inspector-box">${leftInspectorHtml}</div>
             </div>
-            <div class="panel-sec">
-                <h4>🌟 ВЕТКА ТАЛАНТОВ (Очков: ${h.talentPts})</h4>
-                ${talentsHtml}
+
+            <!-- ПРАВАЯ КОЛОНКА: ДЕРЕВО ТАЛАНТОВ В СТИЛЕ СТАРОГО WOW -->
+            <div class="panel-sec" style="display:flex; flex-direction:column; justify-content:space-between;">
+                <div>
+                    <h4>
+                        <span>🌟 ДЕРЕВО ТАЛАНТОВ</span>
+                        <span>Очков: <b class="hl-gold">${h.talentPts}</b></span>
+                    </h4>
+                    <div style="display:grid; grid-template-columns:38px 1fr 1fr; gap:8px; font-size:9px; color:#b58c5e; text-align:center; margin-bottom:3px;">
+                        <div></div><div>⚔️ Ветка Натиска</div><div>🛡️ Ветка Защиты</div>
+                    </div>
+                    <div class="wow-tree">${wowTreeHtml}</div>
+                </div>
+                <div class="inspector-box" style="min-height:48px;">${talentInspectorHtml}</div>
+            </div>
+        </div>
+
+        <!-- НИЖНЕЕ ОКНО СОСТОЯНИЯ: ТРАВМЫ, ДЕБАФФЫ И ПАССИВКИ -->
+        <div class="status-bottom-panel">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <b style="color:#ffd700;">🩺 СОСТОЯНИЕ БОЙЦА (Травмы, Дебаффы и Пассивка):</b>
+                <span style="color:#9c8265; font-size:9px;">Нажмите на иконку эффекта для описания</span>
+            </div>
+            <div class="status-badges-row">${statusBadgesHtml}</div>
+            <div style="margin-top:4px; padding-top:3px; border-top:1px dashed #4a3520; color:#dec8ad;">
+                ${statusDescHtml}
             </div>
         </div>
     `;
+
+    drawPaperDollFigure(h);
+}
+
+function selectHeroLeftInspect(heroId, type, key) {
+    heroUiState.heroId = heroId;
+    heroUiState.leftInspect = { type, key };
+    renderHeroDetailModal(heroId);
+}
+
+function selectHeroTalentNode(heroId, talentId) {
+    heroUiState.heroId = heroId;
+    heroUiState.selectedTalentId = talentId;
+    renderHeroDetailModal(heroId);
+}
+
+function selectHeroStatusBadge(heroId, statusKey) {
+    heroUiState.heroId = heroId;
+    heroUiState.selectedStatusKey = statusKey;
+    renderHeroDetailModal(heroId);
+}
+
+function unequipHeroSlot(heroId, slot) {
+    let h = state.party.find(p => p.id === heroId);
+    if (!h) return;
+    ensureHeroRpgData(h);
+    let cur = h.equipObj[slot];
+    if (!cur) return;
+
+    h.atkBonus = Math.max(0, h.atkBonus - (cur.atk || 0));
+    h.armor = Math.max(0, h.armor - (cur.armor || 0));
+    h.blockChance = Math.max(0, h.blockChance - (cur.block || 0));
+
+    state.spareEquip.push(cur);
+    h.equipObj[slot] = null;
+    h.equip[slot] = 'Пусто';
+
+    heroUiState.leftInspect = { type: 'equipped', key: slot };
+    renderHeroDetailModal(heroId);
 }
 
 function equipItemOnHero(heroId, eqIdx) {
     let h = state.party.find(p => p.id === heroId);
     let item = state.spareEquip[eqIdx];
     if (!h || !item) return;
+    ensureHeroRpgData(h);
 
-    h.atkBonus += item.atk;
-    h.armor += item.armor;
-    h.blockChance += item.block;
-    h.equip[item.slot] = `${item.name} (+${item.atk}Ур/+${item.armor}Бр)`;
+    let slot = item.slot;
+    let prev = h.equipObj[slot];
+    if (prev) {
+        h.atkBonus = Math.max(0, h.atkBonus - (prev.atk || 0));
+        h.armor = Math.max(0, h.armor - (prev.armor || 0));
+        h.blockChance = Math.max(0, h.blockChance - (prev.block || 0));
+        state.spareEquip.push(prev);
+    }
+
+    h.atkBonus += (item.atk || 0);
+    h.armor += (item.armor || 0);
+    h.blockChance += (item.block || 0);
+
+    h.equipObj[slot] = item;
+    h.equip[slot] = `${item.name} (+${item.atk || 0}Ур/+${item.armor || 0}Бр)`;
     state.spareEquip.splice(eqIdx, 1);
+
+    heroUiState.leftInspect = { type: 'equipped', key: slot };
     log(`Герой <span class="hl-gold">${h.name}</span> экипировал предмет: <b>${item.name}</b>!`);
     renderHeroDetailModal(heroId);
 }
@@ -592,18 +1221,20 @@ function equipItemOnHero(heroId, eqIdx) {
 function unlockTalent(heroId, talentId) {
     let h = state.party.find(p => p.id === heroId);
     if (!h || h.talentPts <= 0) return;
+    ensureHeroRpgData(h);
     let t = h.talents.find(x => x.id === talentId);
-    if (!t || t.unlocked) return;
+    if (!t || t.unlocked || !isTalentTierUnlocked(h, t.tier)) return;
 
     h.talentPts--;
     t.unlocked = true;
     t.effect(h);
+    heroUiState.selectedTalentId = t.id;
     log(`Изучен талант <span class="hl-green">«${t.name}»</span> для бойца ${h.name}!`);
     updateStatsUI();
     renderHeroDetailModal(heroId);
 }
 
-// ================= ПРОКРУТКА ЦИКЛОВ (ПАЛАТЫ И ЧАСТНАЯ ВОЙНА ВЕРБОВЩИКА) =================
+// ================= ПРОКРУТКА ЦИКЛОВ =================
 function advanceCycle(amount = 1) {
     for (let c = 0; c < amount; c++) {
         state.cycle++;
@@ -628,143 +1259,126 @@ function advanceCycle(amount = 1) {
 }
 
 function resolvePrivateWar(hero) {
+    let contract = hero.warContract || { goldMin: 40, goldMax: 60, deathChance: 10, injuryChance: 25, name: 'Частная война' };
     let r = Math.random() * 100;
-    if (r < 10) {
+
+    if (r < contract.deathChance) {
         hero.status = 'dead';
-        log(`<span class="hl-red">ВЕРБОВЩИК СООБЩАЕТ:</span> Лихая пуля настигла бойца! ${hero.name} погиб на частной войне (шанс 10%)...`);
+        log(`<span class="hl-red">ВЕРБОВЩИК СООБЩАЕТ:</span> Поход «${contract.name}» закончился трагедией! Боец ${hero.name} пал смертью храбрых...`);
     } else {
         hero.status = 'ready';
-        let goldEarned = 40 + roll(20);
+        let goldEarned = contract.goldMin + roll(contract.goldMax - contract.goldMin + 1);
         state.gold += goldEarned;
-        hero.lvl++;
-        hero.talentPts++;
-        hero.maxHp += 4;
+        let lvls = contract.lvlGain || 1;
+        hero.lvl += lvls;
+        hero.talentPts += lvls;
+        hero.maxHp += 4 * lvls;
         hero.hp = hero.maxHp;
-        if (r < 30) {
-            hero.injuries.push('Шрам от алебарды (-2 HP)');
+
+        if (r < contract.deathChance + contract.injuryChance) {
+            hero.injuries.push('Боевое ранение (-2 HP)');
             hero.maxHp = Math.max(10, hero.maxHp - 2);
             hero.hp = hero.maxHp;
-            log(`<span class="hl-gold">ВОЗВРАЩЕНИЕ С ВОЙНЫ:</span> ${hero.name} принес ${goldEarned} грошей, взял Ур.${hero.lvl} (+1 талант), но получил травму!`);
+            log(`<span class="hl-gold">ВОЗВРАЩЕНИЕ С ВОЙНЫ (${contract.name}):</span> ${hero.name} принес <b>${goldEarned} грошей</b>, поднял Ур.${hero.lvl}, но получил ранение!`);
         } else {
-            log(`<span class="hl-gold">ВОЗВРАЩЕНИЕ С ВОЙНЫ:</span> ${hero.name} вернулся невредимым! Принес ${goldEarned} грошей и взял Ур.${hero.lvl} (+1 талант)!`);
+            let bonusItem = contract.bonusItem ? `, а также привез трофей: ${contract.bonusItem.name}` : '';
+            if (contract.bonusItem) state.spareEquip.push(contract.bonusItem);
+            log(`<span class="hl-gold">ТРИУМФ ВОЙНЫ (${contract.name}):</span> ${hero.name} вернулся с победой! Принес <b>${goldEarned} грошей</b> и поднял Ур.${hero.lvl}${bonusItem}!`);
         }
+    }
+    delete hero.warContract;
+    updateStatsUI();
+}
+
+// ================= СЦЕНА 1: ТАВЕРНА ГИЛЬДИИ И ОТДЕЛЬНЫЕ ОКНА ДЛЯ КАЖДОГО НПС =================
+function updateSceneLayout() {
+    const vp = document.getElementById('viewport-container');
+    if (scene === 'guild' || scene === 'map') {
+        logEl.style.display = 'none';
+        controlsEl.style.display = 'none';
+        vp.style.flex = '1';
+        vp.style.height = '100%';
+        vp.style.borderBottom = 'none';
+    } else {
+        logEl.style.display = 'block';
+        controlsEl.style.display = 'flex';
+        vp.style.flex = 'none';
+        vp.style.height = '50vh';
+        vp.style.borderBottom = '3px solid #7a5230';
     }
 }
 
-// ================= СЦЕНА 1: ТАВЕРНА ГИЛЬДИИ BRATRSTVO KORBELE =================
 function enterGuild(returning = false) {
     scene = 'guild';
     updateStatsUI();
-    if (!returning) {
-        clearLog();
-        log(`Добро пожаловать в таверну гильдии <span class="hl-gold">«Bratrstvo Korbele»</span>!`);
-        log(`Хозяин за дубовым прилавком расплывается в хитрой улыбке, сверкая <span class="hl-gold">золотым зубом</span>: <i>«Здоров будь, пане! Наведи курсор на любой угол корчмы — всё покажу и расскажу. Для первого дела даю тебе Пана Вшивца, Брата Тадеуша и Шимона!»</i>`);
-    } else {
-        log(`Хозяин сверкает золотым зубом и стучит кружкой по стойке: <i>«Хвала Господу, вернулись! Делите гроши да лечите шишки!»</i>`);
-    }
-    showGuildMainControls();
+    updateSceneLayout();
 }
 
 function showGuildMainControls() {
-    let activeCount = state.party.filter(h => h.status === 'ready').length;
-    controlsEl.innerHTML = `
-        <div class="btn-row">
-            <button onclick="openGuildSection('quests')">📋 Доска Заданий</button>
-            <button onclick="openGuildSection('host')">🍺 Хозяин (Магазин)</button>
-            <button onclick="openGuildSection('clinic')">➕ Палаты врачебные</button>
-        </div>
-        <div class="btn-row">
-            <button onclick="openGuildSection('mercs')">🪑 Стол наемников</button>
-            <button onclick="openGuildSection('verbirz')">🚩 Вербовщик (Война)</button>
-            <button onclick="openSquadModal()">🛡️ Отряд / Таланты</button>
-            <button class="btn-sec" onclick="waitCycleInGuild()">⏳ Ждать 1 цикл (В строю: ${activeCount})</button>
-        </div>
-    `;
+    updateSceneLayout();
 }
 
-function waitCycleInGuild() {
-    advanceCycle(1);
-    log(`Отряд провел 1 цикл в таверне за кружкой пенного.`);
-    showGuildMainControls();
-}
+// ================= ОТДЕЛЬНЫЕ ОКНА ДЛЯ КАЖДОГО НПС С ПОРТРЕТОМ, РАЗГОВОРОМ И ВЫБОРОМ =================
+let selectedRecruiterCampaign = 0;
 
 function openGuildSection(sec) {
-    if (sec === 'quests') {
-        let readyHeroes = state.party.filter(h => h.status === 'ready');
-        log(`<b>ДОСКА ЗАДАНИЙ:</b> Свиток с сургучной печатью гласит: «Уничтожить отряд Чашников». Сложность: Легкая. Награда: 45 грошей и трофейное снаряжение.`);
-        controlsEl.innerHTML = `
-            <div class="btn-row">
-                <button onclick="startQuest()" ${readyHeroes.length === 0 ? 'disabled' : ''}>
-                    ⚔️ ВЫСТУПИТЬ В ПОХОД: Отряд Чашников (Сложность: Легкая | Награда: 45 грошей) [Бойцов: ${readyHeroes.length}]
-                </button>
-            </div>
-            <div class="btn-row"><button class="btn-sec" onclick="showGuildMainControls()">Назад в зал таверны</button></div>
-        `;
-    } 
-    else if (sec === 'host') {
-        const quotes = [
-            "«Видишь мой золотой зуб, пане? Это я у гуситского сотника выменял — посмертно, хе-хе!»",
-            "«Бери пиво в дорогу да штурмовой горшок с порохом! Без них в Богемии никуда!»",
-            "«Купи добрую сталь для своих орлов, а надеть сможешь в меню ОТРЯД!»"
-        ];
-        log(`<b>ХОЗЯИН ТАВЕРНЫ:</b> <i>${quotes[Math.floor(Math.random() * quotes.length)]}</i>`);
-        controlsEl.innerHTML = `
-            <div class="btn-row">
-                <button onclick="buyItem('beer')" ${state.gold < 10 ? 'disabled' : ''}>🍺 Купить Пиво 1d10 (10 гр.)</button>
-                <button onclick="buyItem('pot')" ${state.gold < 25 ? 'disabled' : ''}>💣 Штурмовой горшок 1d20 (25 гр.)</button>
-            </div>
-            <div class="btn-row">
-                <button onclick="buyItem('sword')" ${state.gold < 35 ? 'disabled' : ''}>🗡️ Купить Гусарскую саблю +2 Ур (35 гр.)</button>
-                <button onclick="buyItem('plate')" ${state.gold < 40 ? 'disabled' : ''}>🛡️ Купить Кирасу +2 Бр/+8% Блок (40 гр.)</button>
-            </div>
-            <div class="btn-row"><button class="btn-sec" onclick="showGuildMainControls()">Отойти от прилавка</button></div>
-        `;
-    }
-    else if (sec === 'clinic') {
-        log(`<b>ПАЛАТЫ ВРАЧЕБНЫЕ:</b> Сестра милосердия перевяжет раны и снимет все травмы за 15 грошей (длительность зависит от тяжести травм: 1-3 цикла).`);
-        let btns = state.party.map((h, idx) => {
-            if (h.status === 'dead') return '';
-            let needHeal = h.hp < h.maxHp || h.injuries.length > 0;
-            let cyclesNeeded = Math.max(1, h.injuries.length + 1);
-            if (h.status === 'clinic') return `<button disabled>${h.name} (В палатах: ${h.timer} ц.)</button>`;
-            return `<button onclick="sendToClinic(${idx})" ${(!needHeal || state.gold < 15 || h.status !== 'ready') ? 'disabled' : ''}>
-                Лечить: ${h.name} (${h.hp}/${h.maxHp}HP | Травм: ${h.injuries.length}) [${cyclesNeeded} ц. / 15 гр.]
-            </button>`;
-        }).join('');
-        controlsEl.innerHTML = `
-            <div class="btn-row">${btns}</div>
-            <div class="btn-row"><button class="btn-sec" onclick="showGuildMainControls()">Назад</button></div>
-        `;
-    }
-    else if (sec === 'mercs') {
-        log(`<b>СТОЛ НАЕМНИКОВ:</b> Латники и пехотинцы пьют эль при свечах и ждут нанимателя.`);
-        let mercBtns = state.mercsForHire.map((m, idx) => {
-            let inj = m.injuries.length ? m.injuries.join(', ') : 'Без травм';
-            return `<button onclick="hireMerc(${idx})" ${state.gold < m.price ? 'disabled' : ''}>
-                Нанять: ${m.name} | ${m.cls} Ур.${m.lvl} | ${inj} | Цена: ${m.price} гр.
-            </button>`;
-        }).join('');
-        if (!mercBtns) mercBtns = `<button disabled>Все наемники уже в вашем отряде</button>`;
-        controlsEl.innerHTML = `
-            <div class="btn-row">${mercBtns}</div>
-            <div class="btn-row"><button class="btn-sec" onclick="showGuildMainControls()">Назад</button></div>
-        `;
-    }
-    else if (sec === 'verbirz') {
-        log(`<b>ВЕРБОВЩИК (Вербирж):</b> Королевский глашатай со стягом Богемии предлагает отдать бойца на частную войну на 10 циклов (10% гибель, 20% травма, награда: гроши + уровень).`);
-        let btns = state.party.map((h, idx) => {
-            if (h.status === 'dead') return '';
-            if (h.status === 'war') return `<button disabled>${h.name} (На войне: ${h.timer} ц.)</button>`;
-            return `<button onclick="sendToWar(${idx})" ${h.status !== 'ready' ? 'disabled' : ''}>Отправить на 10 циклов: ${h.name} (Ур.${h.lvl})</button>`;
-        }).join('');
-        controlsEl.innerHTML = `
-            <div class="btn-row">${btns}</div>
-            <div class="btn-row"><button class="btn-sec" onclick="showGuildMainControls()">Назад</button></div>
-        `;
+    modalOverlay.style.display = 'block';
+
+    if (sec === 'host') {
+        openHostDialog();
+    } else if (sec === 'clinic') {
+        openClinicDialog();
+    } else if (sec === 'mercs') {
+        openMercsDialog();
+    } else if (sec === 'verbirz') {
+        openVerbirzDialog();
+    } else if (sec === 'quests') {
+        openQuestsDialog();
     }
 }
 
-function buyItem(type) {
+// 1. ХОЗЯИН ТАВЕРНЫ / МАГАЗИН
+const TAVERN_TALES = [
+    "«Видишь мой золотой зуб, пане? Это я у гуситского сотника выменял — посмертно, хе-хе! Тот тоже думал, что чаша крепче сабли!»",
+    "«Слыхал новость? Пан Вшивец вчера в подвале бочку пива на спор выпил, а потом с гуситским знаменем польку плясал!»",
+    "«Бери пиво в дорогу да штурмовой горшок с порохом! Без них на богемском тракте даже до первого моста не дойдешь!»",
+    "«Пан Януш из Праги сказывал, что король Вацлав опять поругался с архиепископом. Значит, скоро наемникам будет много работы!»"
+];
+
+function openHostDialog(customSpeech = null) {
+    let speech = customSpeech || TAVERN_TALES[Math.floor(Math.random() * TAVERN_TALES.length)];
+    modalContent.innerHTML = `
+        <div class="npc-dialog-box">
+            <div class="npc-header-flex">
+                <canvas class="npc-avatar-canvas" id="npc-avatar" width="72" height="72"></canvas>
+                <div class="npc-quote-block">
+                    <h3>Хозяин таверны (с золотым зубом)</h3>
+                    <div class="npc-quote-speech">${speech}</div>
+                </div>
+                <button style="max-width:40px; padding:4px;" onclick="closeSquadModal()">✕</button>
+            </div>
+            <div style="font-size:12px; margin-bottom:8px; display:flex; justify-content:space-between;">
+                <span>🪙 Казна гильдии: <b class="hl-gold">${state.gold} грошей</b></span>
+                <span>🍺 Пиво: <b>${state.beer}</b> | 💣 Горшки: <b>${state.pots}</b></span>
+            </div>
+            <div class="btn-row" style="margin-bottom:10px;">
+                <button class="btn-sec" onclick="openHostDialog(TAVERN_TALES[Math.floor(Math.random()*TAVERN_TALES.length)])">💬 Травить байку / Слухи Богемии</button>
+            </div>
+            <div class="squad-section-title"><span>🛒 ЛАВКА ХОЗЯИНА: ПРИПАСЫ И ОРУЖИЕ</span></div>
+            <div class="btn-row" style="margin-bottom:6px;">
+                <button onclick="buyShopItem('beer')" ${state.gold < 10 ? 'disabled' : ''}>🍺 Купить Пиво 1d10 (10 гр.)</button>
+                <button onclick="buyShopItem('pot')" ${state.gold < 25 ? 'disabled' : ''}>💣 Штурмовой горшок 1d20 (25 гр.)</button>
+            </div>
+            <div class="btn-row">
+                <button onclick="buyShopItem('sword')" ${state.gold < 35 ? 'disabled' : ''}>🗡️ Гусарская сабля +2 Ур (35 гр.)</button>
+                <button onclick="buyShopItem('plate')" ${state.gold < 40 ? 'disabled' : ''}>🛡️ Кованая кираса +2 Бр / +8% Блок (40 гр.)</button>
+            </div>
+        </div>
+    `;
+    drawNpcAvatar('host');
+}
+
+function buyShopItem(type) {
     if (type === 'beer' && state.gold >= 10) {
         state.gold -= 10; state.beer++;
         log(`Куплена бутылка пенного пива (1d10 HP).`);
@@ -774,52 +1388,351 @@ function buyItem(type) {
     } else if (type === 'sword' && state.gold >= 35) {
         state.gold -= 35;
         state.spareEquip.push({ name: 'Гусарская сабля', slot: 'weapon', atk: 2, armor: 0, block: 5 });
-        log(`Куплена <b>Гусарская сабля</b>! Наденьте её на любого бойца в меню «ОТРЯД / ТАЛАНТЫ».`);
+        log(`Куплена <b>Гусарская сабля (+2 Ур)</b>! Наденьте её на бойца в меню ОТРЯД.`);
     } else if (type === 'plate' && state.gold >= 40) {
         state.gold -= 40;
         state.spareEquip.push({ name: 'Кованая кираса', slot: 'armor', atk: 0, armor: 2, block: 8 });
-        log(`Куплена <b>Кованая кираса</b>! Наденьте её на любого бойца в меню «ОТРЯД / ТАЛАНТЫ».`);
+        log(`Куплена <b>Кованая кираса (+2 Бр / +8% Блок)</b>! Наденьте её на бойца в меню ОТРЯД.`);
     }
     updateStatsUI();
-    openGuildSection('host');
+    openHostDialog("«Хорошая покупка, пане! Честный товар за честное серебро!»");
 }
 
-function sendToClinic(idx) {
+// 2. ПАЛАТЫ ВРАЧЕБНЫЕ (КОМПАКТНО В ОДНО ОКНО БЕЗ ПРОКРУТКИ)
+function openClinicDialog() {
+    let alive = state.party.filter(h => h.status !== 'dead');
+    let useGrid = alive.length > 4 ? 'hero-grid' : '';
+
+    let heroCards = state.party.map((h, idx) => {
+        if (h.status === 'dead') return '';
+        let hpDeficit = h.maxHp - h.hp;
+        let injCount = h.injuries.length;
+        let isAtClinic = h.status === 'clinic';
+
+        let statusText = isAtClinic
+            ? `<span class="hl-gold">🏥 В палатах (${h.timer} ц.)</span>`
+            : (hpDeficit === 0 && injCount === 0
+                ? `<span class="hl-green">✓ Здоров</span>`
+                : `${hpDeficit > 0 ? `Ранен (-${hpDeficit} HP) ` : ''}${injCount > 0 ? `<span class="hl-red">${h.injuries.join(', ')}</span>` : ''}`);
+
+        let healHpBtn = (!isAtClinic && hpDeficit > 0)
+            ? `<button style="font-size:10px; padding:4px 6px; max-width:130px;" onclick="treatHeroInClinic(${idx}, 'hp')" ${state.gold < 10 || h.status !== 'ready' ? 'disabled' : ''}>🩹 HP [10гр | 1ц]</button>`
+            : '';
+
+        let healInjBtn = (!isAtClinic && injCount > 0)
+            ? `<button style="font-size:10px; padding:4px 6px; max-width:155px;" onclick="treatHeroInClinic(${idx}, 'injuries')" ${state.gold < 15 * injCount || h.status !== 'ready' ? 'disabled' : ''}>💊 Травмы [${15 * injCount}гр | ${1 + injCount}ц]</button>`
+            : '';
+
+        return `
+            <div class="hero-card-row" style="margin-bottom:${useGrid ? '0' : '4px'};">
+                <div style="flex:1;">
+                    <b class="hl-gold">${h.name}</b> (${h.cls}) | HP: <b>${h.hp}/${h.maxHp}</b><br>
+                    ${statusText}
+                </div>
+                <div style="display:flex; gap:4px;">
+                    ${healHpBtn}
+                    ${healInjBtn}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    modalContent.innerHTML = `
+        <div class="npc-dialog-box">
+            <div class="npc-header-flex">
+                <canvas class="npc-avatar-canvas" id="npc-avatar" width="72" height="72"></canvas>
+                <div class="npc-quote-block">
+                    <h3>Палаты врачебные — Сестра Берта (Казна: ${state.gold} гр.)</h3>
+                    <div class="npc-quote-speech">«Перевязка HP — 10 гр. (1 цикл). Снятие травм — 15 гр. за травму (1 + травмы циклов).»</div>
+                </div>
+                <button style="max-width:36px; padding:4px;" onclick="closeSquadModal()">✕</button>
+            </div>
+            <div class="${useGrid}">${heroCards}</div>
+        </div>
+    `;
+    drawNpcAvatar('clinic');
+}
+
+function treatHeroInClinic(idx, mode) {
     let h = state.party[idx];
-    if (state.gold < 15 || h.status !== 'ready') return;
-    state.gold -= 15;
-    h.status = 'clinic';
-    h.timer = Math.max(1, h.injuries.length + 1);
-    log(`${h.name} помещен во Врачебные палаты на ${h.timer} ц.`);
+    if (!h || h.status !== 'ready') return;
+
+    if (mode === 'hp') {
+        if (state.gold < 10) return;
+        state.gold -= 10;
+        h.status = 'clinic';
+        h.timer = 1;
+    } else if (mode === 'injuries') {
+        let cost = 15 * h.injuries.length;
+        if (state.gold < cost) return;
+        state.gold -= cost;
+        h.status = 'clinic';
+        h.timer = 1 + h.injuries.length;
+    }
+
     updateStatsUI();
-    openGuildSection('clinic');
+    openClinicDialog();
 }
 
-function hireMerc(idx) {
+// 3. СТОЛ НАЕМНИКОВ (ОДНА КНОПКА НАЙМА, КОМПАКТНО БЕЗ ПРОКРУТОК)
+function openMercsDialog() {
+    let totalAlive = state.party.filter(h => h.status !== 'dead').length;
+    let maxTotal = state.squadMax + state.reserveMax;
+
+    let mercRows = state.mercsForHire.map((m, idx) => {
+        let inj = m.injuries.length ? `<span class="hl-red">${m.injuries.join(', ')}</span>` : '<span class="hl-green">Без травм</span>';
+        let canHire = state.gold >= m.price && totalAlive < maxTotal;
+
+        return `
+            <div class="hero-card-row">
+                <div style="flex:1;">
+                    <b class="hl-gold">${m.name}</b> | <b>${m.cls}</b> (Ур.${m.lvl}) | HP: ${m.hp}/${m.maxHp} | Бр: ${m.armor} | Блок: ${m.blockChance}%<br>
+                    Травмы: ${inj} | Оружие: ${m.equip.weapon}
+                </div>
+                <button style="font-size:10px; max-width:135px; padding:6px;" onclick="hireMercenary(${idx})" ${!canHire ? 'disabled' : ''}>
+                    НАНЯТЬ (${m.price} гр.)
+                </button>
+            </div>
+        `;
+    }).join('');
+
+    if (!mercRows) {
+        mercRows = `<div style="color:#888; font-size:11px; padding:8px; text-align:center;">Все наемники в корчме уже наняты!</div>`;
+    }
+
+    modalContent.innerHTML = `
+        <div class="npc-dialog-box">
+            <div class="npc-header-flex">
+                <canvas class="npc-avatar-canvas" id="npc-avatar" width="72" height="72"></canvas>
+                <div class="npc-quote-block">
+                    <h3>Стол наемников — Бывалый рубака (Казна: ${state.gold} гр.)</h3>
+                    <div class="npc-quote-speech">«Парни за столом рубили гуситов и знают цену звонкой монете! Кого берешь в гильдию?»</div>
+                </div>
+                <button style="max-width:36px; padding:4px;" onclick="closeSquadModal()">✕</button>
+            </div>
+            ${mercRows}
+        </div>
+    `;
+    drawNpcAvatar('mercs');
+}
+
+function hireMercenary(idx) {
     let m = state.mercsForHire[idx];
-    if (state.gold < m.price) return;
+    if (!m || state.gold < m.price) return;
+
     state.gold -= m.price;
+    let currentSquad = state.party.filter(h => h.inSquad && h.status !== 'dead').length;
+    m.inSquad = (currentSquad < state.squadMax);
     state.mercsForHire.splice(idx, 1);
     state.party.push(m);
-    log(`<span class="hl-gold">${m.name}</span> ударил по рукам и вступил в ваш отряд!`);
+
     updateStatsUI();
-    openGuildSection('mercs');
+    openMercsDialog();
 }
 
-function sendToWar(idx) {
-    let h = state.party[idx];
-    if (h.status !== 'ready') return;
-    h.status = 'war';
-    h.timer = 10;
-    log(`Вербовщик записал бойца <span class="hl-gold">${h.name}</span> в полк на 10 циклов!`);
+// 4. ВЕРБОВЩИК / ВЕРБИРЖ (КОМПАКТНО В ОДНО ОКНО)
+const WAR_CAMPAIGNS = [
+    {
+        id: 'caravan',
+        name: 'Охрана обоза короны',
+        riskBadge: '<span class="badge-risk risk-low">НИЗКИЙ РИСК</span>',
+        needHeroes: 1,
+        cycles: 4,
+        deathChance: 5,
+        injuryChance: 15,
+        goldMin: 40, goldMax: 55,
+        rewardDesc: '40-55 гр., +1 Ур., +1 талант'
+    },
+    {
+        id: 'border',
+        name: 'Стычка с Чашниками',
+        riskBadge: '<span class="badge-risk risk-med">СРЕДНИЙ РИСК</span>',
+        needHeroes: 1,
+        cycles: 8,
+        deathChance: 12,
+        injuryChance: 25,
+        goldMin: 75, goldMax: 100,
+        bonusItem: { name: 'Трофейный чекан', slot: 'weapon', atk: 2, armor: 0, block: 6 },
+        rewardDesc: '75-100 гр., +1 Ур., чекан'
+    },
+    {
+        id: 'siege',
+        name: 'Штурм крепости',
+        riskBadge: '<span class="badge-risk risk-high">ВЫСОКИЙ РИСК</span>',
+        needHeroes: 2,
+        cycles: 12,
+        deathChance: 20,
+        injuryChance: 35,
+        goldMin: 150, goldMax: 200,
+        lvlGain: 2,
+        bonusItem: { name: 'Рыцарский панцирь', slot: 'armor', atk: 0, armor: 3, block: 10 },
+        rewardDesc: '150-200 гр., +2 Ур., панцирь'
+    }
+];
+
+let selectedHeroesForWar = [];
+
+function openVerbirzDialog() {
+    let camp = WAR_CAMPAIGNS[selectedRecruiterCampaign];
+    let readyHeroes = state.party.filter(h => h.status === 'ready' && h.hp > 0);
+
+    let campaignTabs = WAR_CAMPAIGNS.map((c, i) => {
+        let isSel = (i === selectedRecruiterCampaign);
+        return `
+            <button class="${isSel ? '' : 'btn-sec'}" style="flex:1; font-size:10px; padding:4px;" onclick="selectedRecruiterCampaign=${i}; selectedHeroesForWar=[]; openVerbirzDialog();">
+                ${c.riskBadge} <b>${c.name}</b>
+            </button>
+        `;
+    }).join('');
+
+    let heroPickBtns = readyHeroes.map(h => {
+        let isPicked = selectedHeroesForWar.includes(h.id);
+        return `
+            <button style="max-width:140px; font-size:10px; padding:4px 6px; border-color:${isPicked ? '#66ff66' : '#7a5230'}; background:${isPicked ? '#16381a' : '#1e140d'};" onclick="toggleHeroWarPick('${h.id}')">
+                ${isPicked ? '✓ ' : ''}${h.name} (Ур.${h.lvl})
+            </button>
+        `;
+    }).join('');
+
+    let canSend = (selectedHeroesForWar.length === camp.needHeroes);
+
+    modalContent.innerHTML = `
+        <div class="npc-dialog-box">
+            <div class="npc-header-flex">
+                <canvas class="npc-avatar-canvas" id="npc-avatar" width="72" height="72"></canvas>
+                <div class="npc-quote-block">
+                    <h3>Королевский Вербовщик (Вербирж)</h3>
+                    <div class="npc-quote-speech">«Выбирай кампанию, оценивай риск и отправляй бойцов за королевским серебром!»</div>
+                </div>
+                <button style="max-width:36px; padding:4px;" onclick="closeSquadModal()">✕</button>
+            </div>
+
+            <div class="btn-row" style="margin-bottom:6px;">${campaignTabs}</div>
+
+            <div class="campaign-card selected">
+                <div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px; font-size:11px;">
+                    <span>👥 Людей: <b class="hl-gold">${camp.needHeroes}</b></span>
+                    <span>⏳ Срок: <b class="hl-gold">${camp.cycles} ц.</b></span>
+                    <span>💀 Гибель: <b class="hl-red">${camp.deathChance}%</b></span>
+                    <span>🩹 Травма: <b class="hl-red">${camp.injuryChance}%</b></span>
+                    <span>💰 Награда: <b class="hl-green">${camp.rewardDesc}</b></span>
+                </div>
+            </div>
+
+            <div class="squad-section-title">
+                <span>ВЫБЕРИТЕ БОЙЦОВ (${selectedHeroesForWar.length} / ${camp.needHeroes}):</span>
+            </div>
+            <div class="btn-row" style="margin-bottom:6px;">
+                ${heroPickBtns || '<div style="color:#888; font-size:11px;">Нет свободных бойцов в строю!</div>'}
+            </div>
+
+            <div class="btn-row">
+                <button style="padding:6px;" onclick="dispatchHeroesToWar()" ${!canSend ? 'disabled' : ''}>
+                    🚩 ОТПРАВИТЬ НА ВОЙНУ (${selectedHeroesForWar.length}/${camp.needHeroes}) НА ${camp.cycles} ЦИКЛОВ
+                </button>
+            </div>
+        </div>
+    `;
+    drawNpcAvatar('verbirz');
+}
+
+function toggleHeroWarPick(heroId) {
+    let camp = WAR_CAMPAIGNS[selectedRecruiterCampaign];
+    let idx = selectedHeroesForWar.indexOf(heroId);
+    if (idx >= 0) {
+        selectedHeroesForWar.splice(idx, 1);
+    } else {
+        if (selectedHeroesForWar.length < camp.needHeroes) {
+            selectedHeroesForWar.push(heroId);
+        }
+    }
+    openVerbirzDialog();
+}
+
+function dispatchHeroesToWar() {
+    let camp = WAR_CAMPAIGNS[selectedRecruiterCampaign];
+    if (selectedHeroesForWar.length !== camp.needHeroes) return;
+
+    selectedHeroesForWar.forEach(hid => {
+        let h = state.party.find(p => p.id === hid);
+        if (h) {
+            h.status = 'war';
+            h.timer = camp.cycles;
+            h.warContract = { ...camp };
+        }
+    });
+
+    selectedHeroesForWar = [];
     updateStatsUI();
-    openGuildSection('verbirz');
+    closeSquadModal();
+    showGuildMainControls();
+}
+
+// 5. ДОСКА ЗАДАНИЙ — ВЫБОР БОЙЦОВ НА МИССИЮ ПРОИСХОДИТ ЗДЕСЬ!
+function openQuestsDialog() {
+    let readyHeroes = state.party.filter(h => h.status === 'ready' && h.hp > 0);
+    let selectedMissionHeroes = readyHeroes.filter(h => h.inSquad);
+
+    let heroPickBtns = readyHeroes.map(h => {
+        let isPicked = h.inSquad;
+        return `
+            <button style="max-width:165px; font-size:10px; padding:5px 6px; border-color:${isPicked ? '#66ff66' : '#7a5230'}; background:${isPicked ? '#16381a' : '#1e140d'};" onclick="toggleHeroMissionPick('${h.id}')">
+                ${isPicked ? '✓ ' : ''}${h.name} (Ур.${h.lvl}) [${h.hp}/${h.maxHp}]
+            </button>
+        `;
+    }).join('');
+
+    modalContent.innerHTML = `
+        <div class="npc-dialog-box">
+            <div class="npc-header-flex">
+                <canvas class="npc-avatar-canvas" id="npc-avatar" width="72" height="72"></canvas>
+                <div class="npc-quote-block">
+                    <h3>Доска заданий — Контракты Богемии</h3>
+                    <div class="npc-quote-speech">«Отряд Чашников перекрыл дорогу на Кутна-Гору. Выберите до 5 бойцов для похода!»</div>
+                </div>
+                <button style="max-width:36px; padding:4px;" onclick="closeSquadModal()">✕</button>
+            </div>
+            <div class="campaign-card selected">
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px;">
+                    <b class="hl-gold">📜 Контракт: «Уничтожить отряд Чашников»</b>
+                    <span>Сложность: <b>Легкая</b> | Награда: <b class="hl-green">45-60 грошей + трофеи</b></span>
+                </div>
+            </div>
+            <div class="squad-section-title">
+                <span>⚔️ ВЫБЕРИТЕ БОЙЦОВ НА МИССИЮ (Выбрано: ${selectedMissionHeroes.length} / ${state.squadMax}):</span>
+            </div>
+            <div class="btn-row" style="margin-bottom:6px;">
+                ${heroPickBtns || '<div style="color:#888; font-size:11px;">Нет готовых бойцов в строю!</div>'}
+            </div>
+            <div class="btn-row">
+                <button style="padding:6px;" onclick="closeSquadModal(); startQuest();" ${selectedMissionHeroes.length === 0 ? 'disabled' : ''}>
+                    ⚔️ ВЫСТУПИТЬ В ПОХОД (Бойцов: ${selectedMissionHeroes.length} / ${state.squadMax})
+                </button>
+            </div>
+        </div>
+    `;
+    drawNpcAvatar('quests');
+}
+
+function toggleHeroMissionPick(heroId) {
+    let h = state.party.find(p => p.id === heroId);
+    if (!h || h.status !== 'ready') return;
+    if (h.inSquad) {
+        h.inSquad = false;
+    } else {
+        let count = state.party.filter(p => p.inSquad && p.status === 'ready' && p.hp > 0).length;
+        if (count < state.squadMax) {
+            h.inSquad = true;
+        }
+    }
+    updateStatsUI();
+    openQuestsDialog();
 }
 
 // ================= ОТРИСОВКА ДЕТАЛЬНОЙ ТАВЕРНЫ + ПОДСВЕТКА И НАДПИСИ ПРИ НАВЕДЕНИИ =================
 function drawGuildScene() {
     if (bgLoaded) {
-        ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(cleanBgCanvas, 0, 0, canvas.width, canvas.height);
     } else {
         drawDetailedTavernArt();
     }
@@ -1072,8 +1985,7 @@ function drawBohemianShield(x, y) {
 function startQuest() {
     scene = 'map';
     mapState = { dir: 'to_quest', progress: 0, ambushTriggered: false };
-    log(`Отряд покидает корчму <span class="hl-gold">Bratrstvo Korbele</span> и шагает по тракту Богемии к лагерю Чашников!`);
-    controlsEl.innerHTML = `<div class="btn-row"><button disabled>Отряд в пути по землям Богемии...</button></div>`;
+    updateSceneLayout();
 }
 
 function updateMapLogic() {
@@ -1139,6 +2051,8 @@ function drawMapScene() {
 // ================= СЦЕНА 3: АВТО-БОЙ В РАМКЕ + «ПСЯ КРЕВ!» + РАСПОРЯДОК ГЕРОЕВ =================
 function startCombat(isAmbush) {
     scene = 'combat';
+    updateSceneLayout();
+    clearLog();
     combat.active = true;
     combat.paused = false;
     combat.isAmbush = isAmbush;
@@ -1167,7 +2081,7 @@ function startCombat(isAmbush) {
     }
 
     combat.turnOrder = [];
-    let activeHeroes = state.party.filter(h => h.status === 'ready' && h.hp > 0);
+    let activeHeroes = state.party.filter(h => h.inSquad && h.status === 'ready' && h.hp > 0);
     activeHeroes.forEach(h => {
         h.cd1 = 0; h.cd2 = 0; h.tempHp = 0;
         h.initRoll = h.initBase + roll(10);
@@ -1614,7 +2528,7 @@ function returnFromCombat() {
         mapState.progress = 0;
         mapState.ambushTriggered = false;
     }
-    controlsEl.innerHTML = `<div class="btn-row"><button disabled>Отряд шагает обратно в таверну...</button></div>`;
+    updateSceneLayout();
 }
 
 // ================= ОТРИСОВКА БОЯ В РАМКЕ (LOOP HERO) =================
@@ -1636,10 +2550,13 @@ function drawCombatScene() {
     let buffInfo = combat.psaKrevBuffTurns > 0 ? ` | 🔥 ПСЯ КРЕВ (${combat.psaKrevBuffTurns} х.)` : '';
     ctx.fillText((combat.paused ? '=== ТАКТИЧЕСКАЯ ПАУЗА ===' : '=== АВТО-БОЙ (Кликни на Героя или Врага) ===') + buffInfo, canvas.width / 2, 19);
 
-    let activeHeroes = state.party.filter(h => h.status === 'ready');
+    let activeHeroes = state.party.filter(h => h.inSquad && h.status === 'ready');
+    let hCount = activeHeroes.length;
+    let stepH = hCount > 3 ? 42 : 54;
+    let startH = hCount > 3 ? 66 : 95;
     activeHeroes.forEach((h, idx) => {
-        let baseX = 110 + (idx % 2) * 38;
-        let baseY = 95 + idx * 54;
+        let baseX = 105 + (idx % 2) * 32;
+        let baseY = startH + idx * stepH;
         if (h.lunge > 0) { baseX += 14; h.lunge--; }
         let bob = h.hp > 0 ? Math.sin(frame * 0.12 + idx) * 2 : 0;
         h.x = baseX; h.y = baseY;

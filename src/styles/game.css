@@ -1,0 +1,207 @@
+* { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+body {
+    margin: 0; padding: 0;
+    background-color: #0e0a07; color: #f0e6d2;
+    font-family: 'Courier New', Courier, monospace;
+    display: flex; flex-direction: column;
+    height: 100vh; overflow: hidden;
+}
+#game-container {
+    max-width: 740px; width: 100%; height: 100%;
+    margin: 0 auto; display: flex; flex-direction: column;
+    border-left: 3px solid #7a5230; border-right: 3px solid #7a5230;
+    background: #16100b; position: relative;
+}
+#stats-bar {
+    padding: 6px 10px; border-bottom: 2px solid #7a5230;
+    font-size: 12px; display: flex; flex-wrap: wrap;
+    justify-content: space-between; align-items: center; gap: 5px;
+    background: #22170f; color: #ffd700; font-weight: bold;
+}
+.stat-box { border: 1px solid #7a5230; padding: 3px 6px; background: #120c08; }
+.btn-top-squad {
+    background: #4a2e16; color: #ffd700; border: 1px solid #ffd700;
+    padding: 3px 8px; cursor: pointer; font-size: 11px; font-weight: bold;
+}
+.btn-top-squad:hover { background: #ffd700; color: #000; }
+#viewport-container {
+    position: relative; width: 100%; height: 50vh;
+    border-bottom: 3px solid #7a5230; background: #000;
+}
+canvas {
+    width: 100%; height: 100%; display: block;
+    image-rendering: pixelated;
+}
+#log-container {
+    flex: 1; padding: 8px 12px; overflow-y: auto;
+    font-size: 12px; line-height: 1.45;
+    border-bottom: 2px solid #7a5230; background: #0c0806;
+}
+.log-entry { margin-bottom: 5px; }
+.log-old { color: #756554; }
+.hl-gold { color: #ffd700; font-weight: bold; }
+.hl-red { color: #ff5555; font-weight: bold; }
+.hl-green { color: #66ff66; font-weight: bold; }
+.hl-blue { color: #66ccff; font-weight: bold; }
+#controls {
+    padding: 8px; min-height: 175px; max-height: 215px;
+    overflow-y: auto; display: flex; flex-direction: column; gap: 6px;
+    background: #16100b;
+}
+.btn-row { display: flex; gap: 6px; width: 100%; flex-wrap: wrap; }
+button {
+    flex: 1; min-width: 115px; background: #291c12; color: #f0e6d2;
+    border: 2px solid #b58c5e; padding: 7px 6px;
+    font-family: inherit; font-size: 11px; font-weight: bold;
+    cursor: pointer; text-transform: uppercase;
+}
+button:hover:not(:disabled) { background: #3d291a; border-color: #ffd700; }
+button:active:not(:disabled) { background: #ffd700; color: #000; }
+button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; background: #140e09; }
+.btn-pause { background: #6b1d1d; border-color: #ff6666; color: #fff; }
+.btn-pause.paused { background: #1d6b28; border-color: #66ff66; }
+.btn-psakrev { background: #6b3e12; border-color: #ffae00; color: #ffe699; }
+.btn-sec { border-style: dashed; font-size: 11px; padding: 6px; }
+
+/* Компактные модальные окна без прокрутки (в одно окно) */
+#modal-overlay {
+    display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.85); z-index: 50;
+    padding: 8px; overflow: hidden;
+}
+.modal-box, .npc-dialog-box {
+    border: 2px solid #c69c6d; background: #1a120b; padding: 8px 10px;
+    max-width: 680px; width: 100%; margin: 0 auto;
+    box-shadow: 0 0 25px rgba(0,0,0,0.85);
+}
+.modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid #7a5230; padding-bottom: 4px; margin-bottom: 6px;
+    color: #ffd700; font-size: 13px; font-weight: bold;
+}
+.hero-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 5px;
+}
+.hero-card-row {
+    border: 1px solid #6b4c30; background: #120c08; padding: 5px 8px;
+    margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; gap: 6px;
+}
+.grid-2col { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 8px; margin-top: 4px; }
+.panel-sec { border: 1px solid #5c4028; padding: 6px 8px; background: #110b07; font-size: 11px; }
+.panel-sec h4 { margin: 0 0 5px 0; color: #ffd700; border-bottom: 1px dashed #5c4028; padding-bottom: 3px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; }
+.panel-sec p { margin: 3px 0; }
+
+/* Статы и описания */
+.stat-pills-row { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 5px; }
+.stat-pill {
+    flex: 1; min-width: 52px; border: 1px solid #6b4c30; background: #1a120b;
+    padding: 3px 4px; text-align: center; cursor: pointer; font-size: 10px;
+}
+.stat-pill:hover, .stat-pill.active { border-color: #ffd700; background: #2b1d11; }
+
+/* Кукла персонажа (RPG Paper Doll) — увеличенное окно героя */
+.doll-wrap {
+    display: grid; grid-template-columns: 1fr 112px 1fr; gap: 6px;
+    align-items: center; background: #0c0806; border: 1px solid #4a3520;
+    padding: 6px; margin-bottom: 5px;
+}
+.doll-figure-box {
+    width: 112px; height: 116px; border: 2px solid #8c6239; background: radial-gradient(circle, #2b1d12 0%, #0d0906 85%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;
+    box-shadow: inset 0 0 12px rgba(0,0,0,0.8);
+}
+.rpg-slot {
+    border: 1px solid #6b4c30; background: #18100a; padding: 5px 6px;
+    cursor: pointer; font-size: 10px; min-height: 46px; display: flex;
+    flex-direction: column; justify-content: center; position: relative;
+}
+.rpg-slot:hover, .rpg-slot.selected { border-color: #ffd700; background: #2c1e12; box-shadow: inset 0 0 6px rgba(255,215,0,0.25); }
+.rpg-slot-label { font-size: 9px; color: #9c8265; text-transform: uppercase; }
+.rpg-slot-item { font-weight: bold; color: #f0e6d2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.skill-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 5px; }
+.skill-cell {
+    border: 1px solid #6b4c30; background: #16100a; padding: 4px 5px;
+    font-size: 10px; cursor: pointer; text-align: center; min-height: 32px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.skill-cell:hover, .skill-cell.selected { border-color: #ffd700; background: #2c1e12; }
+.inspector-box {
+    border: 1px solid #7a5230; background: #16100b; padding: 5px 7px;
+    min-height: 44px; display: flex; flex-direction: column; justify-content: center;
+    gap: 4px; font-size: 10px; color: #dec8ad;
+}
+
+/* Ветка талантов в стиле старого WoW */
+.wow-tree {
+    background: radial-gradient(circle at center, #21160e 0%, #0e0906 100%);
+    border: 1px solid #5c4028; padding: 6px; margin-bottom: 5px;
+}
+.wow-tier-row {
+    display: grid; grid-template-columns: 38px 1fr 1fr; gap: 8px; align-items: center;
+}
+.wow-tier-label { font-size: 9px; color: #9c8265; font-weight: bold; text-transform: uppercase; }
+.wow-connector-row {
+    display: grid; grid-template-columns: 38px 1fr 1fr; gap: 8px;
+    text-align: center; color: #7a5230; font-size: 10px; line-height: 10px; margin: 2px 0;
+}
+.wow-node {
+    border: 2px solid #4a3828; background: #140e09; padding: 4px 6px;
+    cursor: pointer; position: relative; display: flex; align-items: center; gap: 5px;
+    font-size: 10px; min-height: 34px;
+}
+.wow-node.available { border-color: #8c6b3f; background: #1d140c; }
+.wow-node.unlocked { border-color: #ffd700; background: #2e2010; box-shadow: 0 0 8px rgba(255,215,0,0.3); }
+.wow-node.selected { outline: 1px dashed #fff; }
+.wow-node.locked { opacity: 0.55; }
+.wow-node-icon {
+    width: 22px; height: 22px; border: 1px solid #7a5230; background: #0c0806;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0;
+}
+.wow-node-rank {
+    position: absolute; bottom: 1px; right: 3px; font-size: 9px;
+    background: #000; padding: 0 3px; border: 1px solid #5c4028; color: #ffd700;
+}
+
+/* Нижняя панель Состояния (Травмы, Дебаффы, Пассивки) */
+.status-bottom-panel {
+    margin-top: 6px; border: 1px solid #6b4c30; background: #110b07; padding: 5px 8px;
+    font-size: 10px;
+}
+.status-badges-row { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; margin-top: 3px; }
+.status-badge {
+    border: 1px solid #5c4028; padding: 2px 6px; cursor: pointer; background: #1a120c; font-size: 10px;
+}
+.status-badge.debuff { border-color: #cc4444; background: #2b1111; color: #ff9999; }
+.status-badge.passive { border-color: #b58c5e; background: #24190e; color: #ffd700; }
+.status-badge.healthy { border-color: #2e6b34; background: #112614; color: #88ff88; }
+.npc-header-flex {
+    display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #7a5230;
+    padding-bottom: 6px; margin-bottom: 6px;
+}
+.npc-avatar-canvas {
+    width: 48px; height: 48px; border: 2px solid #ffd700; background: #0c0806;
+    image-rendering: pixelated; flex-shrink: 0;
+}
+.npc-quote-block {
+    flex: 1; font-size: 11px; line-height: 1.25; color: #f0e6d2;
+}
+.npc-quote-block h3 { margin: 0 0 2px 0; color: #ffd700; font-size: 13px; }
+.npc-quote-speech {
+    font-style: italic; color: #dec8ad; background: #120c08; padding: 4px 8px;
+    border-left: 3px solid #b58c5e; border-radius: 2px;
+}
+.squad-section-title {
+    font-size: 11px; font-weight: bold; color: #ffd700; margin: 4px 0;
+    padding-bottom: 2px; border-bottom: 1px dashed #7a5230; display: flex; justify-content: space-between;
+}
+.campaign-card {
+    border: 1px solid #7a5230; background: #130c08; padding: 6px 8px; margin-bottom: 6px;
+}
+.campaign-card.selected { border-color: #ffd700; background: #24160d; }
+.badge-risk {
+    font-size: 10px; font-weight: bold; padding: 1px 5px; border-radius: 3px; display: inline-block;
+}
+.risk-low { background: #1b4d24; color: #88ff88; }
+.risk-med { background: #5c4714; color: #ffdd66; }
+.risk-high { background: #591b1b; color: #ff8888; }
