@@ -1,0 +1,1751 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Bratrstvo Korbele: Богемия</title>
+<style>
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+    body {
+        margin: 0; padding: 0;
+        background-color: #0e0a07; color: #f0e6d2;
+        font-family: 'Courier New', Courier, monospace;
+        display: flex; flex-direction: column;
+        height: 100vh; overflow: hidden;
+    }
+    #game-container {
+        max-width: 740px; width: 100%; height: 100%;
+        margin: 0 auto; display: flex; flex-direction: column;
+        border-left: 3px solid #7a5230; border-right: 3px solid #7a5230;
+        background: #16100b; position: relative;
+    }
+    #stats-bar {
+        padding: 6px 10px; border-bottom: 2px solid #7a5230;
+        font-size: 12px; display: flex; flex-wrap: wrap;
+        justify-content: space-between; align-items: center; gap: 5px;
+        background: #22170f; color: #ffd700; font-weight: bold;
+    }
+    .stat-box { border: 1px solid #7a5230; padding: 3px 6px; background: #120c08; }
+    .btn-top-squad {
+        background: #4a2e16; color: #ffd700; border: 1px solid #ffd700;
+        padding: 3px 8px; cursor: pointer; font-size: 11px; font-weight: bold;
+    }
+    .btn-top-squad:hover { background: #ffd700; color: #000; }
+    #viewport-container {
+        position: relative; width: 100%; height: 50vh;
+        border-bottom: 3px solid #7a5230; background: #000;
+    }
+    canvas {
+        width: 100%; height: 100%; display: block;
+        image-rendering: pixelated;
+    }
+    #log-container {
+        flex: 1; padding: 8px 12px; overflow-y: auto;
+        font-size: 12px; line-height: 1.45;
+        border-bottom: 2px solid #7a5230; background: #0c0806;
+    }
+    .log-entry { margin-bottom: 5px; }
+    .log-old { color: #756554; }
+    .hl-gold { color: #ffd700; font-weight: bold; }
+    .hl-red { color: #ff5555; font-weight: bold; }
+    .hl-green { color: #66ff66; font-weight: bold; }
+    .hl-blue { color: #66ccff; font-weight: bold; }
+    #controls {
+        padding: 8px; min-height: 175px; max-height: 215px;
+        overflow-y: auto; display: flex; flex-direction: column; gap: 6px;
+        background: #16100b;
+    }
+    .btn-row { display: flex; gap: 6px; width: 100%; flex-wrap: wrap; }
+    button {
+        flex: 1; min-width: 115px; background: #291c12; color: #f0e6d2;
+        border: 2px solid #b58c5e; padding: 7px 6px;
+        font-family: inherit; font-size: 11px; font-weight: bold;
+        cursor: pointer; text-transform: uppercase;
+    }
+    button:hover:not(:disabled) { background: #3d291a; border-color: #ffd700; }
+    button:active:not(:disabled) { background: #ffd700; color: #000; }
+    button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; background: #140e09; }
+    .btn-pause { background: #6b1d1d; border-color: #ff6666; color: #fff; }
+    .btn-pause.paused { background: #1d6b28; border-color: #66ff66; }
+    .btn-psakrev { background: #6b3e12; border-color: #ffae00; color: #ffe699; }
+    .btn-sec { border-style: dashed; font-size: 11px; padding: 6px; }
+
+    /* Модальное окно Информации об отряде, Экипировки и Ветки Талантов */
+    #modal-overlay {
+        display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.85); z-index: 50;
+        padding: 16px; overflow-y: auto;
+    }
+    .modal-box {
+        border: 2px solid #c69c6d; background: #1c130d; padding: 12px;
+        max-width: 660px; margin: 0 auto;
+    }
+    .modal-header {
+        display: flex; justify-content: space-between; align-items: center;
+        border-bottom: 2px solid #7a5230; padding-bottom: 8px; margin-bottom: 10px;
+        color: #ffd700; font-size: 15px; font-weight: bold;
+    }
+    .hero-card-row {
+        border: 1px solid #6b4c30; background: #120c08; padding: 8px;
+        margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;
+        font-size: 12px;
+    }
+    .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+    .panel-sec { border: 1px solid #5c4028; padding: 8px; background: #110b07; font-size: 12px; }
+    .panel-sec h4 { margin: 0 0 6px 0; color: #ffd700; border-bottom: 1px dashed #5c4028; padding-bottom: 4px; }
+    .talent-node {
+        border: 1px solid #8c6239; padding: 6px; margin-bottom: 6px;
+        background: #1f150e; display: flex; justify-content: space-between; align-items: center;
+    }
+    .talent-node.unlocked { border-color: #66ff66; background: #132615; }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="stats-bar">
+        <div class="stat-box" id="st-gold">Гроши: 60</div>
+        <div class="stat-box" id="st-beer">Пиво (1d10): 3</div>
+        <div class="stat-box" id="st-pots">Горшки (1d20): 1</div>
+        <div class="stat-box" id="st-herbs">Травы: 0/5</div>
+        <div class="stat-box" id="st-cycle">Цикл: 1</div>
+        <button class="btn-top-squad" onclick="openSquadModal()">🛡️ ОТРЯД / ТАЛАНТЫ</button>
+    </div>
+    
+    <div id="viewport-container">
+        <canvas id="view" width="520" height="290"></canvas>
+    </div>
+
+    <div id="log-container"></div>
+    <div id="controls"></div>
+
+    <!-- МОДАЛЬНОЕ ОКНО ОТРЯДА И ДЕТАЛЕЙ ГЕРОЯ -->
+    <div id="modal-overlay">
+        <div class="modal-box" id="modal-content"></div>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('view');
+const ctx = canvas.getContext('2d');
+const logEl = document.getElementById('log-container');
+const controlsEl = document.getElementById('controls');
+const modalOverlay = document.getElementById('modal-overlay');
+const modalContent = document.getElementById('modal-content');
+
+// Опционально: если в папке лежит картинка таверны guild_bg.png, игра подгрузит и её!
+const bgImage = new Image();
+let bgLoaded = false;
+bgImage.onload = () => { bgLoaded = true; };
+bgImage.src = 'guild_bg.png'; // Также отрисовываем наш детальный пиксель-арт таверны прямо на Canvas!
+
+function roll(sides) { return Math.floor(Math.random() * sides) + 1; }
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function log(msg) {
+    const old = logEl.querySelectorAll('.log-entry');
+    old.forEach(el => el.classList.add('log-old'));
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    div.innerHTML = `> ${msg}`;
+    logEl.appendChild(div);
+    logEl.scrollTop = logEl.scrollHeight;
+}
+function clearLog() { logEl.innerHTML = ''; }
+
+// ================= ПИКСЕЛЬНЫЕ СПРАЙТЫ 12x12 =================
+const SPRITES = {
+    szlachta: [
+        "   RRRRRR   ",
+        "  RRRRRRRR  ",
+        "  ..####..  ",
+        "   #.##.#   ",
+        "  ########  ",
+        "   ######   ",
+        " RRRRRRRRRR ",
+        "RRRR G RRRRR",
+        "RRR  G   RRR",
+        "  ########  ",
+        "  ###  ###  ",
+        " ###    ### "
+    ],
+    monk: [
+        "    ####    ",
+        "  ########  ",
+        "  #..##..#  ",
+        "   ######   ",
+        "    ####    ",
+        "  ########  ",
+        " ########## ",
+        "#### G  ####",
+        "### GGG  ###",
+        "  ########  ",
+        "  ########  ",
+        "  ###  ###  "
+    ],
+    musketeer: [
+        "  ########  ",
+        " ########## ",
+        "     ####   ",
+        "    #.##.#  ",
+        "   ######   ",
+        "  ########  ",
+        " ####..#### ",
+        "####....####",
+        "###  ..  ###",
+        "   ######   ",
+        "   ##  ##   ",
+        "  ###  ###  "
+    ],
+    husita: [
+        "    ....    ",
+        "   ......   ",
+        "  ........  ",
+        "   #.##.#   ",
+        "   ######   ",
+        "  RRRRRRRR  ",
+        " RRRRGGGRRR ",
+        "RRRR G G RRR",
+        "RRR  GGG RRR",
+        "   ######   ",
+        "   ##  ##   ",
+        "  ###  ###  "
+    ]
+};
+
+function drawSprite(key, cx, cy, scale, mainColor = '#fff', dead = false, flash = false) {
+    const grid = SPRITES[key];
+    if (!grid) return;
+    const size = 12;
+    const sx = Math.floor(cx - (size * scale) / 2);
+    const sy = Math.floor(cy - (size * scale) / 2);
+
+    for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+            const ch = grid[r][c];
+            if (ch === ' ') continue;
+            if (flash) ctx.fillStyle = '#fff';
+            else if (dead) ctx.fillStyle = '#554444';
+            else if (ch === '#') ctx.fillStyle = mainColor;
+            else if (ch === '.') ctx.fillStyle = '#ccc';
+            else if (ch === 'G') ctx.fillStyle = '#ffd700';
+            else if (ch === 'R') ctx.fillStyle = '#cc3333';
+
+            if (dead) {
+                ctx.fillRect(sx + r * scale, sy + (size - c) * scale * 0.6 + 12, scale, scale);
+            } else {
+                ctx.fillRect(sx + c * scale, sy + r * scale, scale, scale);
+            }
+        }
+    }
+}
+
+// ================= ГЛОБАЛЬНОЕ СОСТОЯНИЕ ИГРЫ =================
+let scene = 'guild'; // 'guild', 'map', 'combat'
+let frame = 0;
+let shake = 0;
+let floatingTexts = [];
+let particles = [];
+let hoveredHotspot = null;
+
+const state = {
+    gold: 60,
+    beer: 3,       // Бутылки пива 1d10
+    pots: 1,       // Штурмовой горшок 1d20
+    herbs: 0,      // Травы Тадеуша (0/5)
+    cycle: 1,
+    questsDone: 0,
+    spareEquip: [
+        { name: 'Ржавый корд', slot: 'weapon', atk: 2, armor: 0, block: 0 },
+        { name: 'Стеганый жупан', slot: 'armor', atk: 0, armor: 1, block: 8 },
+        { name: 'Счастливая подкова', slot: 'trinket', atk: 1, armor: 0, block: 5 }
+    ],
+    party: [
+        {
+            id: 'pan',
+            name: 'Пан Вшивец',
+            cls: 'Шляхта',
+            sprite: 'szlachta',
+            color: '#e6c280',
+            lvl: 1, exp: 0, talentPts: 1,
+            hp: 28, maxHp: 28, tempHp: 0,
+            atkBonus: 0,
+            initBase: 6,
+            blockChance: 25,
+            armor: 2,
+            cd1: 0, maxCd1: 2, skill1Name: 'Атака плашмя (1d10 всем)',
+            cd2: 0, maxCd2: 0, skill2Name: 'Атака оружием (1d4)',
+            skillOrder: 'skill1_first', // 'skill1_first', 'basic_only', 'alternate'
+            targetRule: 'focus_or_random', // 'focus_or_random', 'lowest_hp', 'highest_hp'
+            lastUsedSkill: 2,
+            status: 'ready', timer: 0,
+            injuries: [],
+            equip: { weapon: 'Дедовская сабля (+1 Ур)', armor: 'Кунтуш шляхтича (+2 Бр)', trinket: 'Пустая фляжка' },
+            talents: [
+                { id: 'pan_t1', name: 'Крепкая башка (+6 Макс. HP, +5% Блок)', unlocked: false, effect: (h) => { h.maxHp += 6; h.hp += 6; h.blockChance += 5; } },
+                { id: 'pan_t2', name: 'Широкий размах (+2 к урону Атаки плашмя)', unlocked: false, effect: (h) => { h.atkBonus += 2; } },
+                { id: 'pan_t3', name: 'Кураж шляхтича (+1 Броня, +10% Блок)', unlocked: false, effect: (h) => { h.armor += 1; h.blockChance += 10; } }
+            ]
+        },
+        {
+            id: 'tadeusz',
+            name: 'Брат Тадеуш',
+            cls: 'Святоша',
+            sprite: 'monk',
+            color: '#c2996b',
+            lvl: 1, exp: 0, talentPts: 1,
+            hp: 25, maxHp: 25, tempHp: 0,
+            atkBonus: 0,
+            initBase: 5,
+            blockChance: 20,
+            armor: 1,
+            cd1: 0, maxCd1: 0, skill1Name: 'Атака дубиной (1d4)',
+            cd2: 0, maxCd2: 3, skill2Name: 'Запить грехи (Хил 1d4)',
+            skillOrder: 'skill1_first',
+            targetRule: 'focus_or_random',
+            lastUsedSkill: 1,
+            status: 'ready', timer: 0,
+            injuries: [],
+            equip: { weapon: 'Суковатая дубина', armor: 'Монашеская ряса (+1 Бр)', trinket: 'Мешочек для трав' },
+            talents: [
+                { id: 'tad_t1', name: 'Монастырский травник (+5 Макс. HP)', unlocked: false, effect: (h) => { h.maxHp += 5; h.hp += 5; } },
+                { id: 'tad_t2', name: 'Тяжелое кадило (+2 к урону дубиной)', unlocked: false, effect: (h) => { h.atkBonus += 2; } },
+                { id: 'tad_t3', name: 'Благословенный хмель (+1 Броня, +8% Блок)', unlocked: false, effect: (h) => { h.armor += 1; h.blockChance += 8; } }
+            ]
+        },
+        {
+            id: 'szymon',
+            name: 'Шимон Бережливый',
+            cls: 'Мушкетер',
+            sprite: 'musketeer',
+            color: '#7aa3cc',
+            lvl: 1, exp: 0, talentPts: 1,
+            hp: 22, maxHp: 22, tempHp: 0,
+            atkBonus: 0,
+            initBase: 8,
+            blockChance: 15,
+            armor: 1,
+            cd1: 0, maxCd1: 3, skill1Name: 'Выстрел из Аркебузы (1d10 двоим)',
+            cd2: 0, maxCd2: 0, skill2Name: 'Пырнуть Кортиком (1d4)',
+            skillOrder: 'skill1_first',
+            targetRule: 'lowest_hp',
+            lastUsedSkill: 2,
+            status: 'ready', timer: 0,
+            injuries: [],
+            equip: { weapon: 'Аркебуза и Кортик', armor: 'Кожаный колет (+1 Бр)', trinket: 'Пороховница' },
+            talents: [
+                { id: 'szy_t1', name: 'Крупная картечь (+2 к урону выстрелов)', unlocked: false, effect: (h) => { h.atkBonus += 2; } },
+                { id: 'szy_t2', name: 'Зоркий глаз (+3 Инициатива, +4 Макс. HP)', unlocked: false, effect: (h) => { h.initBase += 3; h.maxHp += 4; h.hp += 4; } },
+                { id: 'szy_t3', name: 'Фехтовальная гарда (+10% Блок)', unlocked: false, effect: (h) => { h.blockChance += 10; } }
+            ]
+        }
+    ],
+    mercsForHire: [
+        {
+            id: 'merc1', name: 'Збышек Косой', cls: 'Шляхта', sprite: 'szlachta', color: '#d9a773',
+            lvl: 1, exp: 0, talentPts: 0, hp: 26, maxHp: 26, tempHp: 0, atkBonus: 0,
+            initBase: 6, blockChance: 25, armor: 2,
+            cd1: 0, maxCd1: 2, skill1Name: 'Атака плашмя (1d10 всем)',
+            cd2: 0, maxCd2: 0, skill2Name: 'Атака оружием (1d4)',
+            skillOrder: 'skill1_first', targetRule: 'focus_or_random',
+            status: 'ready', timer: 0, injuries: ['Похмелье (-2 HP)'], price: 35,
+            equip: { weapon: 'Кривая сабля', armor: 'Потертый жупан', trinket: 'Кость в кармане' },
+            talents: [
+                { id: 'm1_t1', name: 'Крепкая башка (+6 HP)', unlocked: false, effect: (h) => { h.maxHp += 6; h.hp += 6; } }
+            ]
+        },
+        {
+            id: 'merc2', name: 'Отец Богуслав', cls: 'Святоша', sprite: 'monk', color: '#a88b67',
+            lvl: 2, exp: 0, talentPts: 1, hp: 30, maxHp: 30, tempHp: 0, atkBonus: 1,
+            initBase: 5, blockChance: 25, armor: 2,
+            cd1: 0, maxCd1: 0, skill1Name: 'Атака дубиной (1d4)',
+            cd2: 0, maxCd2: 3, skill2Name: 'Запить грехи (Хил 1d4)',
+            skillOrder: 'skill1_first', targetRule: 'focus_or_random',
+            status: 'ready', timer: 0, injuries: [], price: 55,
+            equip: { weapon: 'Окованный посох', armor: 'Плотная ряса', trinket: 'Четки' },
+            talents: [
+                { id: 'm2_t1', name: 'Благословение (+5 HP, +1 Ур)', unlocked: false, effect: (h) => { h.maxHp += 5; h.hp += 5; h.atkBonus += 1; } }
+            ]
+        }
+    ]
+};
+
+let mapState = { dir: 'to_quest', progress: 0, ambushTriggered: false };
+let combat = {
+    active: false,
+    paused: false,
+    enemies: [],
+    turnOrder: [],
+    turnIndex: 0,
+    tickTimer: 0,
+    focusEnemyIndex: null,
+    selectedHeroId: null,
+    isAmbush: false,
+    psaKrevCd: 0,        // КД 3 хода на «Пся крев!»
+    psaKrevBuffTurns: 0  // Длительность 6 ходов (+10 врем. HP и +2 урона)
+};
+
+// ================= ИНТЕРАКТИВНЫЕ ЗОНЫ ТАВЕРНЫ (С HOVER-ПОДСВЕТКОЙ И НАДПИСЯМИ) =================
+const GUILD_HOTSPOTS = [
+    { id: 'clinic',  x: 24,  y: 20,  w: 122, h: 98,  title: 'Палаты врачебные', labelX: 85,  labelY: 16 },
+    { id: 'quests',  x: 190, y: 24,  w: 185, h: 88,  title: 'Задания',          labelX: 282, labelY: 18 },
+    { id: 'host',    x: 400, y: 40,  w: 105, h: 82,  title: 'Хозяин таверны / Магазин', labelX: 448, labelY: 32 },
+    { id: 'mercs',   x: 25,  y: 145, w: 195, h: 130, title: 'Стол наемников',   labelX: 115, labelY: 142 },
+    { id: 'verbirz', x: 315, y: 128, w: 185, h: 148, title: 'Вербовщик',        labelX: 410, labelY: 124 }
+];
+
+canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    if (scene === 'guild') {
+        hoveredHotspot = null;
+        for (let h of GUILD_HOTSPOTS) {
+            if (mx >= h.x && mx <= h.x + h.w && my >= h.y && my <= h.y + h.h) {
+                hoveredHotspot = h;
+                break;
+            }
+        }
+        canvas.style.cursor = hoveredHotspot ? 'pointer' : 'default';
+    } else if (scene === 'combat' && combat.active) {
+        let overUnit = false;
+        combat.enemies.forEach(en => {
+            if (en.hp > 0 && Math.abs(mx - en.x) < 25 && Math.abs(my - en.y) < 28) overUnit = true;
+        });
+        state.party.filter(h => h.status === 'ready').forEach(h => {
+            if (Math.abs(mx - h.x) < 25 && Math.abs(my - h.y) < 28) overUnit = true;
+        });
+        canvas.style.cursor = overUnit ? 'pointer' : 'default';
+    } else {
+        canvas.style.cursor = 'default';
+    }
+});
+
+canvas.addEventListener('mouseleave', () => { hoveredHotspot = null; });
+
+canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    if (scene === 'guild') {
+        if (hoveredHotspot) {
+            openGuildSection(hoveredHotspot.id);
+        }
+    } else if (scene === 'combat' && combat.active) {
+        // 1. Клик по герою — открыть его распорядок атак и целей прямо в бою!
+        let activeHeroes = state.party.filter(h => h.status === 'ready');
+        for (let h of activeHeroes) {
+            if (Math.abs(mx - h.x) < 25 && Math.abs(my - h.y) < 28) {
+                combat.selectedHeroId = h.id;
+                combat.paused = true; // Автоматически ставим на тактическую паузу для удобства
+                log(`Выбран боец <span class="hl-gold">${h.name}</span>. Настрой его распорядок атак и целей ниже!`);
+                renderCombatControls();
+                return;
+            }
+        }
+        // 2. Клик по врагу — назначить фокус цели!
+        combat.enemies.forEach((en, idx) => {
+            if (en.hp > 0 && Math.abs(mx - en.x) < 25 && Math.abs(my - en.y) < 28) {
+                combat.focusEnemyIndex = idx;
+                addFloatingText("ФОКУС!", en.x, en.y - 25, '#ffd700');
+                log(`Отряд фокусирует удары на цели: <span class="hl-gold">${en.name}</span>!`);
+                renderCombatControls();
+            }
+        });
+    }
+});
+
+// ================= ЭФФЕКТЫ И UI =================
+function addFloatingText(text, x, y, color = '#fff') {
+    floatingTexts.push({ text, x, y, vy: -1.0, life: 50, color });
+}
+function addParticles(x, y, color = '#fff', count = 14) {
+    for (let i = 0; i < count; i++) {
+        particles.push({
+            x, y,
+            vx: (Math.random() - 0.5) * 5,
+            vy: (Math.random() - 0.7) * 5,
+            color,
+            size: Math.random() < 0.5 ? 3 : 4,
+            life: 20 + Math.random() * 15
+        });
+    }
+}
+
+function updateStatsUI() {
+    document.getElementById('st-gold').innerText = `Гроши: ${state.gold}`;
+    document.getElementById('st-beer').innerText = `Пиво (1d10): ${state.beer}`;
+    document.getElementById('st-pots').innerText = `Горшки (1d20): ${state.pots}`;
+    document.getElementById('st-herbs').innerText = `Травы: ${state.herbs}/5`;
+    document.getElementById('st-cycle').innerText = `Цикл: ${state.cycle}`;
+}
+
+// ================= ОКНО ИНФОРМАЦИИ ОБ ОТРЯДЕ, ЭКИПИРОВКИ И ВЕТКИ ТАЛАНТОВ =================
+function openSquadModal(heroId = null) {
+    modalOverlay.style.display = 'block';
+    if (!heroId) {
+        renderSquadListModal();
+    } else {
+        renderHeroDetailModal(heroId);
+    }
+}
+
+function closeSquadModal() {
+    modalOverlay.style.display = 'none';
+}
+
+function renderSquadListModal() {
+    let rows = state.party.map(h => {
+        let injCount = h.injuries.length;
+        let injText = injCount > 0 ? `<span class="hl-red">Травмы (${injCount}): ${h.injuries.join(', ')}</span>` : `<span class="hl-green">Травм нет (0)</span>`;
+        let stBadge = h.status === 'ready' ? 'В строю' : (h.status === 'war' ? `Война (${h.timer}ц)` : (h.status === 'clinic' ? `Палаты (${h.timer}ц)` : 'МЕРТВ'));
+        return `
+            <div class="hero-card-row">
+                <div>
+                    <b class="hl-gold">${h.name}</b> | Класс: <b>${h.cls}</b> (Ур. ${h.lvl}) | HP: ${h.hp}/${h.maxHp} | Статус: ${stBadge}<br>
+                    ${injText} | Очки талантов: <span class="hl-gold">${h.talentPts}</span>
+                </div>
+                <button style="max-width:160px;" onclick="renderHeroDetailModal('${h.id}')">Экипировка / Таланты</button>
+            </div>
+        `;
+    }).join('');
+
+    modalContent.innerHTML = `
+        <div class="modal-header">
+            <span>🛡️ ИНФОРМАЦИЯ ОБ ОТРЯДЕ BRATRSTVO KORBELE</span>
+            <button style="max-width:100px;" onclick="closeSquadModal()">ЗАКРЫТЬ [X]</button>
+        </div>
+        <div style="margin-bottom:8px; font-size:12px; color:#ccc;">
+            Выбери бойца, чтобы посмотреть его экипировку, травмы и прокачать ветку талантов:
+        </div>
+        ${rows}
+    `;
+}
+
+function renderHeroDetailModal(heroId) {
+    let h = state.party.find(p => p.id === heroId);
+    if (!h) return;
+
+    let spareBtns = state.spareEquip.map((eq, idx) => {
+        return `<button class="btn-sec" onclick="equipItemOnHero('${h.id}', ${idx})">Надеть: ${eq.name} (+${eq.atk}Ур/+${eq.armor}Бр/+${eq.block}%Бл)</button>`;
+    }).join('');
+    if (!spareBtns) spareBtns = `<div style="color:#777;">Свободного снаряжения в сумке нет (купите у Хозяина или добудьте в бою)</div>`;
+
+    let talentsHtml = h.talents.map((t, idx) => {
+        return `
+            <div class="talent-node ${t.unlocked ? 'unlocked' : ''}">
+                <div>
+                    <b>Тир ${idx + 1}: ${t.name}</b><br>
+                    <span style="font-size:10px; color:#aaa;">${t.unlocked ? 'Изучено' : 'Требует 1 очко талантов'}</span>
+                </div>
+                ${t.unlocked
+                    ? `<span class="hl-green">✓ АКТИВЕН</span>`
+                    : `<button style="max-width:110px;" onclick="unlockTalent('${h.id}', '${t.id}')" ${h.talentPts <= 0 ? 'disabled' : ''}>Изучить (1)</button>`
+                }
+            </div>
+        `;
+    }).join('');
+
+    let injStr = h.injuries.length > 0 ? h.injuries.join(', ') : 'Здоров как бык (0)';
+
+    modalContent.innerHTML = `
+        <div class="modal-header">
+            <span>⚔️ ${h.name} — ${h.cls} (Уровень ${h.lvl})</span>
+            <button style="max-width:140px;" onclick="renderSquadListModal()">← Ко всему отряду</button>
+        </div>
+        <div style="font-size:12px; margin-bottom:6px;">
+            HP: <b>${h.hp}/${h.maxHp}</b> | Броня (Поглощение): <b>${h.armor}</b> | Шанс блока: <b>${h.blockChance}%</b> | Бонус урона: <b>+${h.atkBonus}</b> | Травмы (${h.injuries.length}): <span class="hl-red">${injStr}</span>
+        </div>
+        <div class="grid-2col">
+            <div class="panel-sec">
+                <h4>🎽 ЭКИПИРОВКА ГЕРОЯ</h4>
+                <p>🗡️ <b>Оружие:</b> ${h.equip.weapon}</p>
+                <p>🛡️ <b>Доспех:</b> ${h.equip.armor}</p>
+                <p>💍 <b>Талисман:</b> ${h.equip.trinket}</p>
+                <h4 style="margin-top:10px;">🎒 СНАРЯЖЕНИЕ ОТРЯДА</h4>
+                <div class="btn-row">${spareBtns}</div>
+            </div>
+            <div class="panel-sec">
+                <h4>🌟 ВЕТКА ТАЛАНТОВ (Очков: ${h.talentPts})</h4>
+                ${talentsHtml}
+            </div>
+        </div>
+    `;
+}
+
+function equipItemOnHero(heroId, eqIdx) {
+    let h = state.party.find(p => p.id === heroId);
+    let item = state.spareEquip[eqIdx];
+    if (!h || !item) return;
+
+    h.atkBonus += item.atk;
+    h.armor += item.armor;
+    h.blockChance += item.block;
+    h.equip[item.slot] = `${item.name} (+${item.atk}Ур/+${item.armor}Бр)`;
+    state.spareEquip.splice(eqIdx, 1);
+    log(`Герой <span class="hl-gold">${h.name}</span> экипировал предмет: <b>${item.name}</b>!`);
+    renderHeroDetailModal(heroId);
+}
+
+function unlockTalent(heroId, talentId) {
+    let h = state.party.find(p => p.id === heroId);
+    if (!h || h.talentPts <= 0) return;
+    let t = h.talents.find(x => x.id === talentId);
+    if (!t || t.unlocked) return;
+
+    h.talentPts--;
+    t.unlocked = true;
+    t.effect(h);
+    log(`Изучен талант <span class="hl-green">«${t.name}»</span> для бойца ${h.name}!`);
+    updateStatsUI();
+    renderHeroDetailModal(heroId);
+}
+
+// ================= ПРОКРУТКА ЦИКЛОВ (ПАЛАТЫ И ЧАСТНАЯ ВОЙНА ВЕРБОВЩИКА) =================
+function advanceCycle(amount = 1) {
+    for (let c = 0; c < amount; c++) {
+        state.cycle++;
+        state.party.forEach(h => {
+            if (h.status === 'clinic' && h.timer > 0) {
+                h.timer--;
+                if (h.timer <= 0) {
+                    h.status = 'ready';
+                    h.injuries = [];
+                    h.hp = h.maxHp;
+                    log(`<span class="hl-green">ПАЛАТЫ ВРАЧЕБНЫЕ:</span> ${h.name} выписан здоровым и без травм!`);
+                }
+            } else if (h.status === 'war' && h.timer > 0) {
+                h.timer--;
+                if (h.timer <= 0) {
+                    resolvePrivateWar(h);
+                }
+            }
+        });
+    }
+    updateStatsUI();
+}
+
+function resolvePrivateWar(hero) {
+    let r = Math.random() * 100;
+    if (r < 10) {
+        hero.status = 'dead';
+        log(`<span class="hl-red">ВЕРБОВЩИК СООБЩАЕТ:</span> Лихая пуля настигла бойца! ${hero.name} погиб на частной войне (шанс 10%)...`);
+    } else {
+        hero.status = 'ready';
+        let goldEarned = 40 + roll(20);
+        state.gold += goldEarned;
+        hero.lvl++;
+        hero.talentPts++;
+        hero.maxHp += 4;
+        hero.hp = hero.maxHp;
+        if (r < 30) {
+            hero.injuries.push('Шрам от алебарды (-2 HP)');
+            hero.maxHp = Math.max(10, hero.maxHp - 2);
+            hero.hp = hero.maxHp;
+            log(`<span class="hl-gold">ВОЗВРАЩЕНИЕ С ВОЙНЫ:</span> ${hero.name} принес ${goldEarned} грошей, взял Ур.${hero.lvl} (+1 талант), но получил травму!`);
+        } else {
+            log(`<span class="hl-gold">ВОЗВРАЩЕНИЕ С ВОЙНЫ:</span> ${hero.name} вернулся невредимым! Принес ${goldEarned} грошей и взял Ур.${hero.lvl} (+1 талант)!`);
+        }
+    }
+}
+
+// ================= СЦЕНА 1: ТАВЕРНА ГИЛЬДИИ BRATRSTVO KORBELE =================
+function enterGuild(returning = false) {
+    scene = 'guild';
+    updateStatsUI();
+    if (!returning) {
+        clearLog();
+        log(`Добро пожаловать в таверну гильдии <span class="hl-gold">«Bratrstvo Korbele»</span>!`);
+        log(`Хозяин за дубовым прилавком расплывается в хитрой улыбке, сверкая <span class="hl-gold">золотым зубом</span>: <i>«Здоров будь, пане! Наведи курсор на любой угол корчмы — всё покажу и расскажу. Для первого дела даю тебе Пана Вшивца, Брата Тадеуша и Шимона!»</i>`);
+    } else {
+        log(`Хозяин сверкает золотым зубом и стучит кружкой по стойке: <i>«Хвала Господу, вернулись! Делите гроши да лечите шишки!»</i>`);
+    }
+    showGuildMainControls();
+}
+
+function showGuildMainControls() {
+    let activeCount = state.party.filter(h => h.status === 'ready').length;
+    controlsEl.innerHTML = `
+        <div class="btn-row">
+            <button onclick="openGuildSection('quests')">📋 Доска Заданий</button>
+            <button onclick="openGuildSection('host')">🍺 Хозяин (Магазин)</button>
+            <button onclick="openGuildSection('clinic')">➕ Палаты врачебные</button>
+        </div>
+        <div class="btn-row">
+            <button onclick="openGuildSection('mercs')">🪑 Стол наемников</button>
+            <button onclick="openGuildSection('verbirz')">🚩 Вербовщик (Война)</button>
+            <button onclick="openSquadModal()">🛡️ Отряд / Таланты</button>
+            <button class="btn-sec" onclick="waitCycleInGuild()">⏳ Ждать 1 цикл (В строю: ${activeCount})</button>
+        </div>
+    `;
+}
+
+function waitCycleInGuild() {
+    advanceCycle(1);
+    log(`Отряд провел 1 цикл в таверне за кружкой пенного.`);
+    showGuildMainControls();
+}
+
+function openGuildSection(sec) {
+    if (sec === 'quests') {
+        let readyHeroes = state.party.filter(h => h.status === 'ready');
+        log(`<b>ДОСКА ЗАДАНИЙ:</b> Свиток с сургучной печатью гласит: «Уничтожить отряд Чашников». Сложность: Легкая. Награда: 45 грошей и трофейное снаряжение.`);
+        controlsEl.innerHTML = `
+            <div class="btn-row">
+                <button onclick="startQuest()" ${readyHeroes.length === 0 ? 'disabled' : ''}>
+                    ⚔️ ВЫСТУПИТЬ В ПОХОД: Отряд Чашников (Сложность: Легкая | Награда: 45 грошей) [Бойцов: ${readyHeroes.length}]
+                </button>
+            </div>
+            <div class="btn-row"><button class="btn-sec" onclick="showGuildMainControls()">Назад в зал таверны</button></div>
+        `;
+    } 
+    else if (sec === 'host') {
+        const quotes = [
+            "«Видишь мой золотой зуб, пане? Это я у гуситского сотника выменял — посмертно, хе-хе!»",
+            "«Бери пиво в дорогу да штурмовой горшок с порохом! Без них в Богемии никуда!»",
+            "«Купи добрую сталь для своих орлов, а надеть сможешь в меню ОТРЯД!»"
+        ];
+        log(`<b>ХОЗЯИН ТАВЕРНЫ:</b> <i>${quotes[Math.floor(Math.random() * quotes.length)]}</i>`);
+        controlsEl.innerHTML = `
+            <div class="btn-row">
+                <button onclick="buyItem('beer')" ${state.gold < 10 ? 'disabled' : ''}>🍺 Купить Пиво 1d10 (10 гр.)</button>
+                <button onclick="buyItem('pot')" ${state.gold < 25 ? 'disabled' : ''}>💣 Штурмовой горшок 1d20 (25 гр.)</button>
+            </div>
+            <div class="btn-row">
+                <button onclick="buyItem('sword')" ${state.gold < 35 ? 'disabled' : ''}>🗡️ Купить Гусарскую саблю +2 Ур (35 гр.)</button>
+                <button onclick="buyItem('plate')" ${state.gold < 40 ? 'disabled' : ''}>🛡️ Купить Кирасу +2 Бр/+8% Блок (40 гр.)</button>
+            </div>
+            <div class="btn-row"><button class="btn-sec" onclick="showGuildMainControls()">Отойти от прилавка</button></div>
+        `;
+    }
+    else if (sec === 'clinic') {
+        log(`<b>ПАЛАТЫ ВРАЧЕБНЫЕ:</b> Сестра милосердия перевяжет раны и снимет все травмы за 15 грошей (длительность зависит от тяжести травм: 1-3 цикла).`);
+        let btns = state.party.map((h, idx) => {
+            if (h.status === 'dead') return '';
+            let needHeal = h.hp < h.maxHp || h.injuries.length > 0;
+            let cyclesNeeded = Math.max(1, h.injuries.length + 1);
+            if (h.status === 'clinic') return `<button disabled>${h.name} (В палатах: ${h.timer} ц.)</button>`;
+            return `<button onclick="sendToClinic(${idx})" ${(!needHeal || state.gold < 15 || h.status !== 'ready') ? 'disabled' : ''}>
+                Лечить: ${h.name} (${h.hp}/${h.maxHp}HP | Травм: ${h.injuries.length}) [${cyclesNeeded} ц. / 15 гр.]
+            </button>`;
+        }).join('');
+        controlsEl.innerHTML = `
+            <div class="btn-row">${btns}</div>
+            <div class="btn-row"><button class="btn-sec" onclick="showGuildMainControls()">Назад</button></div>
+        `;
+    }
+    else if (sec === 'mercs') {
+        log(`<b>СТОЛ НАЕМНИКОВ:</b> Латники и пехотинцы пьют эль при свечах и ждут нанимателя.`);
+        let mercBtns = state.mercsForHire.map((m, idx) => {
+            let inj = m.injuries.length ? m.injuries.join(', ') : 'Без травм';
+            return `<button onclick="hireMerc(${idx})" ${state.gold < m.price ? 'disabled' : ''}>
+                Нанять: ${m.name} | ${m.cls} Ур.${m.lvl} | ${inj} | Цена: ${m.price} гр.
+            </button>`;
+        }).join('');
+        if (!mercBtns) mercBtns = `<button disabled>Все наемники уже в вашем отряде</button>`;
+        controlsEl.innerHTML = `
+            <div class="btn-row">${mercBtns}</div>
+            <div class="btn-row"><button class="btn-sec" onclick="showGuildMainControls()">Назад</button></div>
+        `;
+    }
+    else if (sec === 'verbirz') {
+        log(`<b>ВЕРБОВЩИК (Вербирж):</b> Королевский глашатай со стягом Богемии предлагает отдать бойца на частную войну на 10 циклов (10% гибель, 20% травма, награда: гроши + уровень).`);
+        let btns = state.party.map((h, idx) => {
+            if (h.status === 'dead') return '';
+            if (h.status === 'war') return `<button disabled>${h.name} (На войне: ${h.timer} ц.)</button>`;
+            return `<button onclick="sendToWar(${idx})" ${h.status !== 'ready' ? 'disabled' : ''}>Отправить на 10 циклов: ${h.name} (Ур.${h.lvl})</button>`;
+        }).join('');
+        controlsEl.innerHTML = `
+            <div class="btn-row">${btns}</div>
+            <div class="btn-row"><button class="btn-sec" onclick="showGuildMainControls()">Назад</button></div>
+        `;
+    }
+}
+
+function buyItem(type) {
+    if (type === 'beer' && state.gold >= 10) {
+        state.gold -= 10; state.beer++;
+        log(`Куплена бутылка пенного пива (1d10 HP).`);
+    } else if (type === 'pot' && state.gold >= 25) {
+        state.gold -= 25; state.pots++;
+        log(`Куплен Штурмовой горшок (1d20 урона).`);
+    } else if (type === 'sword' && state.gold >= 35) {
+        state.gold -= 35;
+        state.spareEquip.push({ name: 'Гусарская сабля', slot: 'weapon', atk: 2, armor: 0, block: 5 });
+        log(`Куплена <b>Гусарская сабля</b>! Наденьте её на любого бойца в меню «ОТРЯД / ТАЛАНТЫ».`);
+    } else if (type === 'plate' && state.gold >= 40) {
+        state.gold -= 40;
+        state.spareEquip.push({ name: 'Кованая кираса', slot: 'armor', atk: 0, armor: 2, block: 8 });
+        log(`Куплена <b>Кованая кираса</b>! Наденьте её на любого бойца в меню «ОТРЯД / ТАЛАНТЫ».`);
+    }
+    updateStatsUI();
+    openGuildSection('host');
+}
+
+function sendToClinic(idx) {
+    let h = state.party[idx];
+    if (state.gold < 15 || h.status !== 'ready') return;
+    state.gold -= 15;
+    h.status = 'clinic';
+    h.timer = Math.max(1, h.injuries.length + 1);
+    log(`${h.name} помещен во Врачебные палаты на ${h.timer} ц.`);
+    updateStatsUI();
+    openGuildSection('clinic');
+}
+
+function hireMerc(idx) {
+    let m = state.mercsForHire[idx];
+    if (state.gold < m.price) return;
+    state.gold -= m.price;
+    state.mercsForHire.splice(idx, 1);
+    state.party.push(m);
+    log(`<span class="hl-gold">${m.name}</span> ударил по рукам и вступил в ваш отряд!`);
+    updateStatsUI();
+    openGuildSection('mercs');
+}
+
+function sendToWar(idx) {
+    let h = state.party[idx];
+    if (h.status !== 'ready') return;
+    h.status = 'war';
+    h.timer = 10;
+    log(`Вербовщик записал бойца <span class="hl-gold">${h.name}</span> в полк на 10 циклов!`);
+    updateStatsUI();
+    openGuildSection('verbirz');
+}
+
+// ================= ОТРИСОВКА ДЕТАЛЬНОЙ ТАВЕРНЫ + ПОДСВЕТКА И НАДПИСИ ПРИ НАВЕДЕНИИ =================
+function drawGuildScene() {
+    if (bgLoaded) {
+        ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+    } else {
+        drawDetailedTavernArt();
+    }
+
+    // Если курсор наведен на интерактивный объект — подсвечиваем его и выводим табличку с надписью!
+    if (hoveredHotspot) {
+        const h = hoveredHotspot;
+        ctx.save();
+        // Мягкое золотое свечение вокруг объекта
+        ctx.fillStyle = 'rgba(255, 215, 0, 0.14)';
+        ctx.fillRect(h.x, h.y, h.w, h.h);
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(h.x, h.y, h.w, h.h);
+
+        // Всплывающая табличка с названием как на референсе
+        ctx.font = 'bold 13px Courier New';
+        let tw = ctx.measureText(h.title).width + 18;
+        let tx = clamp(h.labelX - tw / 2, 6, canvas.width - tw - 6);
+        let ty = Math.max(6, h.labelY - 12);
+
+        ctx.fillStyle = 'rgba(18, 14, 11, 0.92)';
+        ctx.fillRect(tx, ty, tw, 22);
+        ctx.strokeStyle = '#c69c6d';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(tx, ty, tw, 22);
+
+        ctx.fillStyle = '#f5ebd6';
+        ctx.textAlign = 'center';
+        ctx.fillText(h.title, tx + tw / 2, ty + 15);
+        ctx.restore();
+    }
+}
+
+function drawDetailedTavernArt() {
+    // 1. Каменная стена (верх) и каменные плиты пола (низ)
+    ctx.fillStyle = '#26211d';
+    ctx.fillRect(0, 0, 520, 118);
+    ctx.fillStyle = '#2d2823';
+    ctx.fillRect(0, 142, 520, 148);
+
+    // Кирпичная кладка стены
+    ctx.strokeStyle = '#171310'; ctx.lineWidth = 1;
+    for (let y = 0; y < 118; y += 14) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(520, y); ctx.stroke();
+        let off = (Math.floor(y / 14) % 2) * 16;
+        for (let x = off; x < 520; x += 32) {
+            ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 14); ctx.stroke();
+        }
+    }
+    // Каменная брусчатка пола
+    for (let y = 145; y < 290; y += 18) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(520, y); ctx.stroke();
+        let off = (Math.floor(y / 18) % 2) * 22;
+        for (let x = off; x < 520; x += 44) {
+            ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 18); ctx.stroke();
+        }
+    }
+
+    // Горящие факелы на стенах
+    drawTorch(14, 58);
+    drawTorch(174, 46);
+
+    // 2. ВРАЧЕБНЫЕ ПАЛАТЫ (Слева вверху: дверной проем, 2 белых знамени с красным крестом, сестра милосердия и раненый)
+    ctx.fillStyle = '#0c0907';
+    ctx.fillRect(68, 22, 62, 94);
+    ctx.strokeStyle = '#4a3520'; ctx.lineWidth = 5;
+    ctx.strokeRect(68, 22, 62, 94);
+
+    // Левое знамя на стене и занавеска в проеме
+    drawBannerWithCross(32, 42, 28, 52);
+    drawBannerWithCross(68, 25, 34, 62);
+
+    // Сестра милосердия и перевязанный раненый у входа
+    ctx.fillStyle = '#735135'; ctx.beginPath(); ctx.arc(102, 78, 7, 0, Math.PI*2); ctx.fill(); // платок
+    ctx.fillStyle = '#d9b38c'; ctx.beginPath(); ctx.arc(102, 79, 5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#9e9689'; ctx.fillRect(94, 86, 16, 28); // платье
+    // Раненый сидит рядом
+    ctx.fillStyle = '#d9b38c'; ctx.beginPath(); ctx.arc(118, 88, 5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillRect(113, 83, 10, 3); // повязка на голове
+    ctx.fillStyle = '#6e5236'; ctx.fillRect(111, 94, 15, 20);
+
+    // 3. ДОСКА ЗАДАНИЙ (В центре вверху: деревянная рама со множеством пергаментов и красными сургучными печатями)
+    ctx.fillStyle = '#332214';
+    ctx.fillRect(195, 26, 175, 76);
+    ctx.strokeStyle = '#5c3c20'; ctx.lineWidth = 4;
+    ctx.strokeRect(195, 26, 175, 76);
+
+    const papers = [
+        [204, 34, 24, 30], [234, 36, 28, 24], [268, 32, 26, 32],
+        [300, 35, 30, 26], [336, 33, 24, 28], [208, 68, 22, 24],
+        [244, 64, 24, 28], [296, 65, 34, 28], [338, 66, 24, 26]
+    ];
+    papers.forEach(([px, py, pw, ph]) => {
+        ctx.fillStyle = '#d8c59e';
+        ctx.fillRect(px, py, pw, ph);
+        ctx.fillStyle = '#4a3b2c';
+        for (let ly = py + 5; ly < py + ph - 4; ly += 5) {
+            ctx.fillRect(px + 3, ly, pw - 6, 1.5);
+        }
+        // Сургучная печать с ленточкой
+        ctx.fillStyle = '#8f1d1d';
+        ctx.beginPath(); ctx.arc(px + pw / 2, py + ph, 3.5, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // 4. ХОЗЯИН ТАВЕРНЫ / МАГАЗИН (Справа вверху: полки с бутылками, бочки, ухмыляющийся корчмарь с золотым зубом)
+    ctx.fillStyle = '#3a2514';
+    ctx.fillRect(390, 25, 120, 8);
+    ctx.fillRect(390, 52, 120, 8);
+    // Бочки и бутылки на полках
+    ctx.fillStyle = '#5c3818';
+    ctx.beginPath(); ctx.ellipse(402, 82, 16, 22, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#4a6b53'; ctx.fillRect(435, 36, 7, 15);
+    ctx.fillStyle = '#7a4b2a'; ctx.fillRect(450, 34, 9, 17);
+    ctx.fillStyle = '#52667a'; ctx.fillRect(475, 37, 8, 14);
+
+    // Фигура хозяина
+    ctx.fillStyle = '#ccb89d'; // рубаха
+    ctx.fillRect(422, 84, 38, 30);
+    ctx.fillStyle = '#3b2716'; // жилетка
+    ctx.fillRect(427, 84, 10, 30); ctx.fillRect(445, 84, 10, 30);
+    ctx.fillStyle = '#d4a379'; // голова
+    ctx.beginPath(); ctx.arc(441, 70, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#22160d'; // чуб и брови
+    ctx.fillRect(431, 56, 20, 5);
+    ctx.fillRect(434, 66, 4, 3); ctx.fillRect(444, 66, 4, 3);
+    // Широкая улыбка и сверкающий ЗОЛОТОЙ ЗУБ
+    ctx.fillStyle = '#1a0d06';
+    ctx.fillRect(435, 73, 13, 5);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(436, 74, 3, 3); ctx.fillRect(443, 74, 3, 3);
+    ctx.fillStyle = (frame % 24 < 12) ? '#ffd700' : '#fff394';
+    ctx.fillRect(439, 74, 4, 4);
+
+    // 5. ДЛИННЫЙ ДЕРЕВЯННЫЙ ПРИЛАВОК ВО ВСЮ ШИРИНУ ТАВЕРНЫ
+    ctx.fillStyle = '#734f2c';
+    ctx.fillRect(8, 114, 504, 16);
+    ctx.fillStyle = '#472f18';
+    ctx.fillRect(8, 130, 504, 24);
+    ctx.strokeStyle = '#24160a'; ctx.lineWidth = 2;
+    ctx.strokeRect(8, 114, 504, 40);
+    for (let x = 28; x < 510; x += 24) {
+        ctx.beginPath(); ctx.moveTo(x, 130); ctx.lineTo(x, 154); ctx.stroke();
+    }
+    // Горящие свечи на прилавке
+    drawCandle(56, 112);
+    drawCandle(375, 112);
+
+    // 6. СТОЛ НАЕМНИКОВ (Слева внизу: круглый дубовый стол, скамьи, латники и рубаки с кружками пива)
+    ctx.fillStyle = '#5c3c20';
+    ctx.beginPath(); ctx.ellipse(122, 212, 62, 34, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#29180a'; ctx.lineWidth = 3; ctx.stroke();
+    // Свечи и пенные кружки на столе
+    drawCandle(118, 202);
+    drawMug(92, 204); drawMug(142, 200); drawMug(128, 220);
+
+    // Сидящие вокруг стола наемники в шлемах и сукне
+    drawSittingMerc(58, 192, true);
+    drawSittingMerc(94, 168, true);
+    drawSittingMerc(145, 168, true);
+    drawSittingMerc(182, 194, false);
+    drawSittingMerc(78, 234, true);
+    drawSittingMerc(155, 234, false);
+
+    // Деревянная перегородка-скамья посередине зала с геральдическим щитом
+    ctx.fillStyle = '#4f331b';
+    ctx.beginPath();
+    ctx.moveTo(230, 275); ctx.lineTo(295, 165); ctx.lineTo(312, 165); ctx.lineTo(250, 275);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    drawBohemianShield(278, 225);
+
+    // 7. ВЕРБОВЩИК / ВЕРБИРЖ (Справа внизу: 2 королевских воина в красных табардах со львом Богемии, свитком и знаменем)
+    // Воин со свитком
+    ctx.fillStyle = '#7a7a7a'; ctx.beginPath(); ctx.arc(348, 166, 9, 0, Math.PI*2); ctx.fill(); // кольчужный капюшон
+    ctx.fillStyle = '#d4a379'; ctx.beginPath(); ctx.arc(348, 167, 6, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#a82020'; ctx.fillRect(336, 176, 24, 38); // красный табард
+    ctx.fillStyle = '#fff'; ctx.fillRect(344, 184, 8, 10); // белый лев на груди
+    ctx.fillStyle = '#4a3520'; ctx.fillRect(338, 214, 8, 22); ctx.fillRect(350, 214, 8, 22);
+    // Развернутый свиток в руке
+    ctx.fillStyle = '#e6d2aa'; ctx.fillRect(364, 182, 16, 24);
+    ctx.strokeStyle = '#332211'; ctx.lineWidth = 1; ctx.strokeRect(364, 182, 16, 24);
+
+    // Знаменосец со стягом и щитом Богемии
+    ctx.strokeStyle = '#5c3c20'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(402, 105); ctx.lineTo(402, 260); ctx.stroke();
+    // Красный флаг со львом
+    ctx.fillStyle = '#b01e1e';
+    ctx.fillRect(403, 108, 46, 32);
+    ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 1.5; ctx.strokeRect(403, 108, 46, 32);
+    ctx.fillStyle = '#fff'; ctx.fillRect(418, 116, 14, 16); // силуэт льва
+
+    ctx.fillStyle = '#7a7a7a'; ctx.beginPath(); ctx.arc(432, 178, 9, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#d4a379'; ctx.beginPath(); ctx.arc(432, 179, 6, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#a82020'; ctx.fillRect(420, 188, 24, 38);
+    ctx.fillStyle = '#4a3520'; ctx.fillRect(422, 226, 8, 22); ctx.fillRect(434, 226, 8, 22);
+    drawBohemianShield(452, 210);
+}
+
+function drawTorch(x, y) {
+    ctx.fillStyle = '#3b2818'; ctx.fillRect(x - 2, y, 5, 16);
+    let flick = (frame % 10 < 5) ? 2 : 0;
+    ctx.fillStyle = '#ff6600';
+    ctx.beginPath(); ctx.arc(x, y - 4, 7 + flick, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffee55';
+    ctx.beginPath(); ctx.arc(x, y - 4, 4, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawCandle(x, y) {
+    ctx.fillStyle = '#e6dec8'; ctx.fillRect(x - 2, y - 8, 4, 8);
+    ctx.fillStyle = (frame % 14 < 7) ? '#ffcc00' : '#ff8800';
+    ctx.fillRect(x - 1, y - 12, 3, 4);
+}
+
+function drawMug(x, y) {
+    ctx.fillStyle = '#c69c6d'; ctx.fillRect(x, y, 7, 9);
+    ctx.fillStyle = '#fff'; ctx.fillRect(x, y - 2, 7, 3); // шапка пены
+}
+
+function drawBannerWithCross(x, y, w, h) {
+    ctx.fillStyle = '#d8d0c5';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#2b221a'; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = '#9e2a2b';
+    ctx.fillRect(x + w / 2 - 3, y + 10, 6, h - 20);
+    ctx.fillRect(x + 5, y + h / 2 - 3, w - 10, 6);
+}
+
+function drawSittingMerc(x, y, armored) {
+    ctx.fillStyle = armored ? '#6e7378' : '#59412c';
+    ctx.fillRect(x - 9, y, 18, 22);
+    ctx.fillStyle = armored ? '#8c929ac' : '#d4a379';
+    ctx.beginPath(); ctx.arc(x, y - 7, 7, 0, Math.PI * 2); ctx.fill();
+    if (armored) {
+        ctx.fillStyle = '#333'; ctx.fillRect(x - 4, y - 8, 8, 2); // забрало шлема
+    }
+}
+
+function drawBohemianShield(x, y) {
+    ctx.fillStyle = '#a81c1c';
+    ctx.beginPath();
+    ctx.moveTo(x - 12, y - 14); ctx.lineTo(x + 12, y - 14);
+    ctx.lineTo(x + 10, y + 4); ctx.lineTo(x, y + 16); ctx.lineTo(x - 10, y + 4);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x - 4, y - 8, 8, 12);
+}
+
+// ================= СЦЕНА 2: КАРТА БОГЕМИИ И МАРШРУТ =================
+function startQuest() {
+    scene = 'map';
+    mapState = { dir: 'to_quest', progress: 0, ambushTriggered: false };
+    log(`Отряд покидает корчму <span class="hl-gold">Bratrstvo Korbele</span> и шагает по тракту Богемии к лагерю Чашников!`);
+    controlsEl.innerHTML = `<div class="btn-row"><button disabled>Отряд в пути по землям Богемии...</button></div>`;
+}
+
+function updateMapLogic() {
+    mapState.progress += 0.008;
+
+    if (state.questsDone >= 1 && !mapState.ambushTriggered && Math.abs(mapState.progress - 0.5) < 0.015) {
+        mapState.ambushTriggered = true;
+        if (Math.random() < 0.5) {
+            log(`<span class="hl-red">ЗАСАДА НА ТРАКТЕ!</span> На обочине притаились мародеры!`);
+            startCombat(true);
+            return;
+        }
+    }
+
+    if (mapState.progress >= 1) {
+        mapState.progress = 1;
+        if (mapState.dir === 'to_quest') {
+            startCombat(false);
+        } else {
+            advanceCycle(1);
+            enterGuild(true);
+        }
+    }
+}
+
+function drawMapScene() {
+    ctx.fillStyle = '#c8b082';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#5c4028'; ctx.lineWidth = 6;
+    ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
+
+    ctx.fillStyle = '#3d2817'; ctx.font = 'bold 16px Courier New'; ctx.textAlign = 'center';
+    ctx.fillText('~ КАРТА КОРОЛЕВСТВА БОГЕМИЯ ~', canvas.width / 2, 32);
+
+    ctx.strokeStyle = '#5b8499'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(210, 8); ctx.quadraticCurveTo(250, 140, 190, 282); ctx.stroke();
+
+    const startX = 95, startY = 215;
+    const endX = 420, endY = 90;
+
+    ctx.strokeStyle = '#8b261d'; ctx.lineWidth = 3;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(endX, endY); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#2b1d12'; ctx.fillRect(startX - 10, startY - 10, 20, 20);
+    ctx.fillStyle = '#3d2817'; ctx.font = 'bold 11px Courier New';
+    ctx.fillText('Гильдия Bratrstvo', startX, startY + 24);
+
+    ctx.fillStyle = '#8b0000';
+    ctx.beginPath(); ctx.arc(endX, endY, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.fillText('Отряд Чашников', endX, endY + 24);
+
+    let t = mapState.dir === 'to_quest' ? mapState.progress : (1 - mapState.progress);
+    let px = startX + (endX - startX) * t;
+    let py = startY + (endY - startY) * t;
+
+    drawSprite('szlachta', px, py - 8 + Math.sin(frame * 0.25) * 3, 2, '#2b1d12');
+    ctx.fillStyle = '#8b0000';
+    ctx.fillText(mapState.dir === 'to_quest' ? 'Идем на задание...' : 'Возвращаемся в гильдию...', canvas.width / 2, 265);
+}
+
+// ================= СЦЕНА 3: АВТО-БОЙ В РАМКЕ + «ПСЯ КРЕВ!» + РАСПОРЯДОК ГЕРОЕВ =================
+function startCombat(isAmbush) {
+    scene = 'combat';
+    combat.active = true;
+    combat.paused = false;
+    combat.isAmbush = isAmbush;
+    combat.focusEnemyIndex = null;
+    combat.selectedHeroId = null;
+    combat.tickTimer = 0;
+    combat.psaKrevCd = 0;
+    combat.psaKrevBuffTurns = 0;
+
+    let enemyCount = isAmbush ? 2 : 3;
+    const names = ['Чашник с цепом', 'Гусит-стрелок', 'Чашник-ветеран'];
+    combat.enemies = [];
+    for (let i = 0; i < enemyCount; i++) {
+        let maxHp = 15 + state.questsDone * 4 + (i === 2 ? 5 : 0);
+        combat.enemies.push({
+            id: 'en_' + i,
+            name: names[i],
+            sprite: 'husita',
+            color: '#d9534f',
+            hp: maxHp, maxHp: maxHp,
+            atkSides: 4,
+            initBase: 4 + i,
+            superCharge: i === 2 ? 1 : 0,
+            isEnemy: true
+        });
+    }
+
+    combat.turnOrder = [];
+    let activeHeroes = state.party.filter(h => h.status === 'ready' && h.hp > 0);
+    activeHeroes.forEach(h => {
+        h.cd1 = 0; h.cd2 = 0; h.tempHp = 0;
+        h.initRoll = h.initBase + roll(10);
+        h.isEnemy = false;
+        combat.turnOrder.push(h);
+    });
+    combat.enemies.forEach(e => {
+        e.initRoll = e.initBase + roll(10);
+        combat.turnOrder.push(e);
+    });
+
+    combat.turnOrder.sort((a, b) => b.initRoll - a.initRoll);
+    combat.turnIndex = 0;
+
+    let orderStr = combat.turnOrder.map(u => `${u.name}(${u.initRoll})`).join(' → ');
+    log(`<span class="hl-gold">БРОСОК ИНИЦИАТИВЫ:</span> ${orderStr}`);
+    renderCombatControls();
+}
+
+function togglePause() {
+    combat.paused = !combat.paused;
+    renderCombatControls();
+}
+
+// Боевой клич Мастера: «Пся крев!» (КД 3 хода — +10 временного HP на 6 ходов и +2 к урону на 6 ходов)
+function usePsaKrev() {
+    if (!combat.active || combat.psaKrevCd > 0) return;
+    combat.psaKrevCd = 3;
+    combat.psaKrevBuffTurns = 6;
+    shake = 10;
+
+    state.party.filter(h => h.status === 'ready' && h.hp > 0).forEach(h => {
+        h.tempHp = 10;
+        addParticles(h.x || 120, h.y || 120, '#ffd700', 15);
+        addFloatingText("ПСЯ КРЕВ! +10 ЩИТ", h.x || 120, (h.y || 120) - 22, '#ffd700');
+    });
+
+    log(`<span class="hl-gold">🔥 ПСЯ КРЕВ!</span> Вы громогласно ободряете поляков! Все герои получают <b>+10 временного здоровья</b> и <b>+2 к урону</b> на 6 ходов!`);
+    renderCombatControls();
+}
+
+function renderCombatControls() {
+    if (!combat.active) return;
+    let pauseLabel = combat.paused ? '▶️ ПРОДОЛЖИТЬ БОЙ' : '⏸️ ПАУЗА (ТАКТИКА / ИНВЕНТАРЬ)';
+    let pauseClass = combat.paused ? 'btn-pause paused' : 'btn-pause';
+    let psaLabel = combat.psaKrevCd > 0
+        ? `🔥 Пся крев! [КД: ${combat.psaKrevCd} х.]`
+        : `🔥 ПСЯ КРЕВ! (+10 Врем.HP и +2 Урон на 6 х.)`;
+
+    let heroButtons = state.party.filter(h => h.status === 'ready' && h.hp > 0).map(h => {
+        let sel = combat.selectedHeroId === h.id ? '⭐ ' : '';
+        return `<button class="btn-sec" onclick="selectHeroInCombat('${h.id}')">${sel}${h.name} (Распорядок)</button>`;
+    }).join('');
+
+    // Детальная панель выбранного героя в бою (его распорядок атак и целей)
+    let selectedHeroPanel = '';
+    if (combat.selectedHeroId) {
+        let sh = state.party.find(p => p.id === combat.selectedHeroId);
+        if (sh) {
+            const orderNames = {
+                'skill1_first': `Приоритет 1-й («${sh.skill1Name}»), в КД — 2-я`,
+                'basic_only': `Только 2-я базовая («${sh.skill2Name}»)`,
+                'alternate': `Чередовать 1-ю и 2-ю способность`
+            };
+            const targetNames = {
+                'focus_or_random': 'По фокусу Мастера / Случайный враг',
+                'lowest_hp': 'Добивать самого раненого врага',
+                'highest_hp': 'Бить самого здорового врага'
+            };
+            selectedHeroPanel = `
+                <div class="btn-row" style="background:#261a10; padding:5px; border:1px solid #ffd700;">
+                    <div style="width:100%; font-size:11px; color:#ffd700; margin-bottom:4px;">
+                        ⚙️ <b>${sh.name}:</b> 1) ${sh.skill1Name} [КД:${sh.cd1}/${sh.maxCd1}] | 2) ${sh.skill2Name} [КД:${sh.cd2}/${sh.maxCd2}]
+                    </div>
+                    <button onclick="cycleHeroSkillOrder('${sh.id}')">🔄 Порядок атак: ${orderNames[sh.skillOrder]}</button>
+                    <button onclick="cycleHeroTargetRule('${sh.id}')">🎯 Выбор цели: ${targetNames[sh.targetRule]}</button>
+                </div>
+            `;
+        }
+    }
+
+    controlsEl.innerHTML = `
+        <div class="btn-row">
+            <button class="${pauseClass}" onclick="togglePause()">${pauseLabel}</button>
+            <button class="btn-psakrev" onclick="usePsaKrev()" ${combat.psaKrevCd > 0 ? 'disabled' : ''}>${psaLabel}</button>
+        </div>
+        <div class="btn-row">
+            <button onclick="useMasterBeer()" ${state.beer <= 0 ? 'disabled' : ''}>🍺 Пиво раненому (+1d10 HP) [${state.beer}]</button>
+            <button onclick="useMasterPot()" ${state.pots <= 0 ? 'disabled' : ''}>💣 Штурмовой горшок (1d20) [${state.pots}]</button>
+        </div>
+        <div class="btn-row">${heroButtons}</div>
+        ${selectedHeroPanel}
+    `;
+}
+
+function selectHeroInCombat(id) {
+    combat.selectedHeroId = (combat.selectedHeroId === id) ? null : id;
+    renderCombatControls();
+}
+
+function cycleHeroSkillOrder(id) {
+    let h = state.party.find(p => p.id === id);
+    if (!h) return;
+    const modes = ['skill1_first', 'basic_only', 'alternate'];
+    h.skillOrder = modes[(modes.indexOf(h.skillOrder) + 1) % modes.length];
+    renderCombatControls();
+}
+
+function cycleHeroTargetRule(id) {
+    let h = state.party.find(p => p.id === id);
+    if (!h) return;
+    const rules = ['focus_or_random', 'lowest_hp', 'highest_hp'];
+    h.targetRule = rules[(rules.indexOf(h.targetRule) + 1) % rules.length];
+    renderCombatControls();
+}
+
+function useMasterBeer() {
+    if (state.beer <= 0) return;
+    let alive = state.party.filter(h => h.status === 'ready' && h.hp > 0);
+    if (!alive.length) return;
+    alive.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
+    let target = alive[0];
+    state.beer--;
+    let heal = roll(10);
+    target.hp = Math.min(target.maxHp, target.hp + heal);
+    addFloatingText(`+${heal} ПИВО!`, target.x || 120, (target.y || 120) - 15, '#66ff66');
+    log(`<span class="hl-green">ИНВЕНТАРЬ:</span> ${target.name} выпивает пиво и лечит <b>${heal} HP</b> (1d10)!`);
+    updateStatsUI();
+    renderCombatControls();
+}
+
+function useMasterPot() {
+    if (state.pots <= 0) return;
+    state.pots--;
+    let dmg = roll(20);
+    shake = 14;
+    log(`<span class="hl-gold">ШТУРМОВОЙ ГОРШОК!</span> Взрыв порохового горшка наносит <b>${dmg} урона</b> (1d20) всем врагам!`);
+    combat.enemies.forEach(e => {
+        if (e.hp > 0) {
+            e.hp = Math.max(0, e.hp - dmg);
+            e.flash = 10;
+            addParticles(e.x || 360, e.y || 120, '#ff8800', 18);
+            addFloatingText(`-${dmg} БУМ!`, e.x || 360, (e.y || 120) - 15, '#ffcc00');
+        }
+    });
+    updateStatsUI();
+    checkCombatEnd();
+    if (combat.active) renderCombatControls();
+}
+
+// Выбор врага согласно индивидуальному распорядку героя и Фокусу
+function pickEnemyTargetForHero(hero) {
+    let alive = combat.enemies.map((e, i) => ({ target: e, index: i })).filter(x => x.target.hp > 0);
+    if (!alive.length) return null;
+
+    if (combat.focusEnemyIndex !== null) {
+        let fe = combat.enemies[combat.focusEnemyIndex];
+        if (fe && fe.hp > 0) return { target: fe, index: combat.focusEnemyIndex };
+    }
+    if (hero.targetRule === 'lowest_hp') {
+        alive.sort((a, b) => a.target.hp - b.target.hp);
+        return alive[0];
+    }
+    if (hero.targetRule === 'highest_hp') {
+        alive.sort((a, b) => b.target.hp - a.target.hp);
+        return alive[0];
+    }
+    return alive[Math.floor(Math.random() * alive.length)];
+}
+
+// Нанесение урона с учетом пассивки Пана Вшивца (50/50) и Временного Здоровья от «Пся крев!»
+function applyDamageToUnit(attacker, defender, rawDmg) {
+    let dmg = rawDmg;
+    if (attacker && attacker.id === 'pan') {
+        if (Math.random() < 0.5) {
+            addFloatingText("ИК! 0 УРОНА", attacker.x, attacker.y - 20, '#ffd700');
+            log(`<i>Непросыхаемый алкаш (50%):</i> Пан Вшивец мажет спьяну! Исходящий урон = <b>0</b>.`);
+            return 0;
+        }
+    }
+    if (defender && defender.id === 'pan') {
+        if (Math.random() < 0.5) {
+            addFloatingText("ПЬЯНЫЙ УВОРОТ! 0", defender.x, defender.y - 20, '#66ff66');
+            log(`<i>Непросыхаемый алкаш (50%):</i> Пан Вшивец покачнулся, и удар прошел мимо! Входящий урон = <b>0</b>!`);
+            return 0;
+        }
+    }
+
+    // Сначала урон поглощается Временным Здоровьем от клича «Пся крев!»
+    if (defender.tempHp && defender.tempHp > 0) {
+        let absorbedByTemp = Math.min(defender.tempHp, dmg);
+        defender.tempHp -= absorbedByTemp;
+        dmg -= absorbedByTemp;
+        if (absorbedByTemp > 0 && dmg === 0) {
+            addFloatingText(`-${absorbedByTemp} ЩИТ`, defender.x, defender.y - 18, '#66ccff');
+            return absorbedByTemp;
+        }
+    }
+
+    defender.hp = Math.max(0, defender.hp - dmg);
+    defender.flash = 8;
+    addParticles(defender.x, defender.y, '#ff4444', 10);
+    addFloatingText(`-${dmg}`, defender.x, defender.y - 18, '#ff6666');
+    return dmg;
+}
+
+function shouldHeroUsePrimarySkill(unit, cooldownReady) {
+    if (!cooldownReady) return false;
+    if (unit.skillOrder === 'basic_only') return false;
+    if (unit.skillOrder === 'alternate' && unit.lastUsedSkill === 1) return false;
+    return true;
+}
+
+function executeNextCombatTurn() {
+    if (!combat.active || checkCombatEnd()) return;
+
+    // Отсчет КД и длительности баффа «Пся крев!»
+    if (combat.psaKrevCd > 0) combat.psaKrevCd--;
+    if (combat.psaKrevBuffTurns > 0) {
+        combat.psaKrevBuffTurns--;
+        if (combat.psaKrevBuffTurns === 0) {
+            state.party.forEach(h => { h.tempHp = 0; });
+            log(`Действие боевого клича <b>«Пся крев!»</b> закончилось.`);
+        }
+    }
+
+    let loops = 0;
+    while (combat.turnOrder[combat.turnIndex].hp <= 0 && loops < combat.turnOrder.length) {
+        combat.turnIndex = (combat.turnIndex + 1) % combat.turnOrder.length;
+        loops++;
+    }
+    let unit = combat.turnOrder[combat.turnIndex];
+    combat.turnIndex = (combat.turnIndex + 1) % combat.turnOrder.length;
+
+    // Пассивка Брата Тадеуша: 10% шанс найти траву в начале хода ЛЮБОГО существа
+    let tadeusz = state.party.find(h => h.id === 'tadeusz' && h.status === 'ready' && h.hp > 0);
+    if (tadeusz && Math.random() < 0.10) {
+        state.herbs++;
+        addFloatingText("+1 ТРАВА", tadeusz.x, tadeusz.y - 22, '#66ff66');
+        log(`<span class="hl-green">Знаток трав (10%):</span> Брат Тадеуш заметил целебную траву (${state.herbs}/5)!`);
+        if (state.herbs >= 5) {
+            state.herbs -= 5;
+            let brewed = roll(4);
+            state.beer += brewed;
+            addFloatingText(`+${brewed} ПИВА!`, tadeusz.x, tadeusz.y - 34, '#ffd700');
+            log(`<span class="hl-gold">ПИВОВАРНЯ СВЯТОШИ!</span> Из 5 трав Брат Тадеуш сварил <b>${brewed} бут. пива</b> (1d4)!`);
+        }
+        updateStatsUI();
+    }
+
+    unit.lunge = 10;
+    let psaDmgBonus = combat.psaKrevBuffTurns > 0 ? 2 : 0;
+
+    if (!unit.isEnemy) {
+        if (unit.cd1 > 0) unit.cd1--;
+        if (unit.cd2 > 0) unit.cd2--;
+
+        let bonus = (unit.atkBonus || 0) + psaDmgBonus;
+
+        // Пассивка Шимона: 20% шанс выстрелить из Пистоля 1d10 в рандомного врага (даже если тот мертв)
+        if (unit.id === 'szymon' && Math.random() < 0.20) {
+            let randEnemy = combat.enemies[Math.floor(Math.random() * combat.enemies.length)];
+            let pDmg = roll(10) + bonus;
+            if (randEnemy.hp <= 0) {
+                addParticles(randEnemy.x, randEnemy.y, '#aaa', 12);
+                addFloatingText(`В ТРУП! -${pDmg}`, randEnemy.x, randEnemy.y - 15, '#ccc');
+                log(`<span class="hl-blue">Внезапный Пистоль (20%):</span> Шимон стреляет из пистоля на ${pDmg} ур. прямо в труп (${randEnemy.name})!`);
+            } else {
+                randEnemy.hp = Math.max(0, randEnemy.hp - pDmg);
+                randEnemy.flash = 8;
+                addParticles(randEnemy.x, randEnemy.y, '#ffcc00', 14);
+                addFloatingText(`ПИСТОЛЬ -${pDmg}!`, randEnemy.x, randEnemy.y - 18, '#ffd700');
+                log(`<span class="hl-blue">Внезапный Пистоль (20%):</span> Шимон палит из пистоля в ${randEnemy.name} на <b>${pDmg} урона</b>!`);
+            }
+            if (checkCombatEnd()) return;
+        }
+
+        let targetInfo = pickEnemyTargetForHero(unit);
+        if (!targetInfo) return;
+        let target = targetInfo.target;
+        let tIdx = targetInfo.index;
+
+        if (unit.cls === 'Шляхта') {
+            if (shouldHeroUsePrimarySkill(unit, unit.cd1 <= 0)) {
+                unit.cd1 = unit.maxCd1; unit.lastUsedSkill = 1;
+                let aliveEnemies = combat.enemies.filter(e => e.hp > 0);
+                let totalRoll = roll(10) + bonus;
+                if (unit.id === 'pan' && Math.random() < 0.5) {
+                    addFloatingText("ИК! МИМО!", unit.x, unit.y - 20, '#ffd700');
+                    log(`<b>${unit.name}</b> размахнулся <i>Атакой плашмя</i>, но спьяну промахнулся (0 урона)!`);
+                } else {
+                    let perEnemy = Math.max(1, Math.floor(totalRoll / aliveEnemies.length));
+                    log(`<b>${unit.name}</b> бьет <span class="hl-gold">«Атакой плашмя»</span> (${totalRoll} ур. в сумме) — по ${perEnemy} урона всем врагам!`);
+                    aliveEnemies.forEach(e => {
+                        e.hp = Math.max(0, e.hp - perEnemy);
+                        e.flash = 8;
+                        addFloatingText(`-${perEnemy}`, e.x, e.y - 15, '#ff8866');
+                    });
+                }
+            } else {
+                unit.lastUsedSkill = 2;
+                let d = roll(4) + bonus;
+                log(`<b>${unit.name}</b> рубит <i>оружием</i> по ${target.name} (${d} ур.).`);
+                applyDamageToUnit(unit, target, d);
+            }
+        }
+        else if (unit.cls === 'Святоша') {
+            let woundedAllies = state.party.filter(h => h.status === 'ready' && h.hp > 0 && h.hp < h.maxHp);
+            if (shouldHeroUsePrimarySkill(unit, unit.cd2 <= 0 && woundedAllies.length > 0)) {
+                unit.cd2 = unit.maxCd2; unit.lastUsedSkill = 1;
+                woundedAllies.sort((a, b) => a.hp - b.hp);
+                let ally = woundedAllies[0];
+                let heal = roll(4);
+                ally.hp = Math.min(ally.maxHp, ally.hp + heal);
+                addFloatingText(`+${heal} HP`, ally.x, ally.y - 18, '#66ff66');
+                log(`<b>${unit.name}</b> использует <span class="hl-green">«Запить грехи»</span> и лечит ${ally.name} на <b>${heal} HP</b>!`);
+            } else {
+                unit.lastUsedSkill = 2;
+                let d = roll(4) + bonus;
+                log(`<b>${unit.name}</b> бьет <i>дубиной</i> ${target.name} на <b>${d} урона</b>.`);
+                applyDamageToUnit(unit, target, d);
+            }
+        }
+        else if (unit.cls === 'Мушкетер') {
+            if (shouldHeroUsePrimarySkill(unit, unit.cd1 <= 0)) {
+                unit.cd1 = unit.maxCd1; unit.lastUsedSkill = 1;
+                let totalDmg = roll(10) + bonus;
+                let neighbor = null;
+                if (tIdx + 1 < combat.enemies.length && combat.enemies[tIdx + 1].hp > 0) neighbor = combat.enemies[tIdx + 1];
+                else if (tIdx - 1 >= 0 && combat.enemies[tIdx - 1].hp > 0) neighbor = combat.enemies[tIdx - 1];
+
+                if (!neighbor) {
+                    applyDamageToUnit(unit, target, totalDmg);
+                    log(`<b>${unit.name}</b> стреляет из <span class="hl-blue">Аркебузы</span> в ${target.name} на <b>${totalDmg} урона</b>!`);
+                } else {
+                    let half1 = Math.ceil(totalDmg / 2);
+                    let half2 = Math.floor(totalDmg / 2);
+                    let overflow1 = Math.max(0, half1 - target.hp);
+                    applyDamageToUnit(unit, target, half1);
+                    let totalSecond = half2 + overflow1;
+                    let overflow2 = Math.max(0, totalSecond - neighbor.hp);
+                    applyDamageToUnit(unit, neighbor, totalSecond);
+                    if (overflow2 > 0 && target.hp > 0) applyDamageToUnit(unit, target, overflow2);
+                    log(`<b>${unit.name}</b> стреляет из <span class="hl-blue">Аркебузы</span> (${totalDmg} ур.) по ${target.name} и ${neighbor.name}!`);
+                }
+            } else {
+                unit.lastUsedSkill = 2;
+                let d = roll(4) + bonus;
+                log(`<b>${unit.name}</b> пыряет <i>кортиком</i> ${target.name} на <b>${d} урона</b>.`);
+                applyDamageToUnit(unit, target, d);
+            }
+        }
+    } 
+    else {
+        // ХОД ВРАГА
+        let aliveHeroes = state.party.filter(h => h.status === 'ready' && h.hp > 0);
+        if (!aliveHeroes.length) return;
+        let targetHero = aliveHeroes[Math.floor(Math.random() * aliveHeroes.length)];
+
+        unit.superCharge++;
+        if (unit.superCharge >= 3) {
+            unit.superCharge = 0;
+            let rawSuper = roll(6) + 5;
+            shake = 8;
+            if (Math.random() * 100 < targetHero.blockChance) {
+                addFloatingText("БЛОК СУПЕР-УДАРА!", targetHero.x, targetHero.y - 22, '#66ccff');
+                log(`<span class="hl-blue">БЛОК!</span> ${unit.name} наносит <b>СУПЕР-УДАР</b>, но ${targetHero.name} блокирует его (${targetHero.blockChance}%)!`);
+            } else {
+                let finalDmg = Math.max(1, rawSuper - targetHero.armor);
+                log(`<span class="hl-red">СУПЕР-УДАР!</span> ${unit.name} бьет цепом по ${targetHero.name} (${rawSuper} ур., поглощено броней: ${targetHero.armor})!`);
+                applyDamageToUnit(unit, targetHero, finalDmg);
+            }
+        } else {
+            let rawDmg = roll(unit.atkSides);
+            let finalDmg = Math.max(1, rawDmg - Math.floor(targetHero.armor / 2));
+            log(`${unit.name} атакует ${targetHero.name} (${finalDmg} ур.).`);
+            applyDamageToUnit(unit, targetHero, finalDmg);
+        }
+    }
+
+    renderCombatControls();
+    checkCombatEnd();
+}
+
+function checkCombatEnd() {
+    let enemiesAlive = combat.enemies.some(e => e.hp > 0);
+    let heroesAlive = state.party.some(h => h.status === 'ready' && h.hp > 0);
+
+    if (!enemiesAlive) {
+        combat.active = false;
+        let rewardGold = combat.isAmbush ? (20 + roll(10)) : (45 + roll(15));
+        state.gold += rewardGold;
+        if (!combat.isAmbush) state.questsDone++;
+
+        state.party.filter(h => h.status === 'ready' && h.hp > 0).forEach(h => {
+            h.tempHp = 0;
+            h.exp += 10;
+            if (h.exp >= 20) {
+                h.exp -= 20; h.lvl++; h.talentPts++; h.maxHp += 3; h.hp += 3;
+                log(`<span class="hl-green">НОВЫЙ УРОВЕНЬ!</span> ${h.name} достиг ${h.lvl} ур. и получил +1 очко талантов!`);
+            }
+        });
+
+        let lootMsg = '';
+        if (Math.random() < 0.7) {
+            state.spareEquip.push({ name: 'Трофейный клевец', slot: 'weapon', atk: 2, armor: 0, block: 5 });
+            lootMsg = ` Также добыт <b>Трофейный клевец (+2 Ур)</b> — загляните в меню ОТРЯД!`;
+        }
+        log(`<span class="hl-gold">ПОБЕДА!</span> Чашники разбиты! Награда: <b>${rewardGold} грошей</b>.${lootMsg}`);
+        updateStatsUI();
+
+        controlsEl.innerHTML = `
+            <div class="btn-row">
+                <button onclick="returnFromCombat()">🍺 Забрать добычу и продолжить путь</button>
+            </div>
+        `;
+        return true;
+    }
+
+    if (!heroesAlive) {
+        combat.active = false;
+        log(`<span class="hl-red">ПОРАЖЕНИЕ!</span> Отряд разбит и с новыми шишками отступает в таверну...`);
+        state.party.forEach(h => {
+            if (h.status === 'ready') {
+                h.hp = Math.max(6, Math.floor(h.maxHp * 0.4));
+                h.tempHp = 0;
+                h.injuries.push('Побит цепом');
+            }
+        });
+        controlsEl.innerHTML = `
+            <div class="btn-row">
+                <button onclick="enterGuild(true)">Вернуться в таверну Bratrstvo Korbele</button>
+            </div>
+        `;
+        return true;
+    }
+    return false;
+}
+
+function returnFromCombat() {
+    scene = 'map';
+    if (!combat.isAmbush) {
+        mapState.dir = 'to_guild';
+        mapState.progress = 0;
+        mapState.ambushTriggered = false;
+    }
+    controlsEl.innerHTML = `<div class="btn-row"><button disabled>Отряд шагает обратно в таверну...</button></div>`;
+}
+
+// ================= ОТРИСОВКА БОЯ В РАМКЕ (LOOP HERO) =================
+function drawCombatScene() {
+    ctx.fillStyle = '#0d0907';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = '#c69c6d'; ctx.lineWidth = 4;
+    ctx.strokeRect(20, 30, canvas.width - 40, canvas.height - 52);
+    ctx.strokeStyle = '#5c3d22'; ctx.lineWidth = 2;
+    ctx.strokeRect(26, 36, canvas.width - 52, canvas.height - 64);
+
+    ctx.fillStyle = '#1f1610';
+    ctx.fillRect(28, 38, canvas.width - 56, canvas.height - 68);
+    ctx.fillStyle = '#2b2017';
+    ctx.fillRect(28, 175, canvas.width - 56, 48);
+
+    ctx.fillStyle = '#ffd700'; ctx.font = 'bold 11px Courier New'; ctx.textAlign = 'center';
+    let buffInfo = combat.psaKrevBuffTurns > 0 ? ` | 🔥 ПСЯ КРЕВ (${combat.psaKrevBuffTurns} х.)` : '';
+    ctx.fillText((combat.paused ? '=== ТАКТИЧЕСКАЯ ПАУЗА ===' : '=== АВТО-БОЙ (Кликни на Героя или Врага) ===') + buffInfo, canvas.width / 2, 19);
+
+    let activeHeroes = state.party.filter(h => h.status === 'ready');
+    activeHeroes.forEach((h, idx) => {
+        let baseX = 110 + (idx % 2) * 38;
+        let baseY = 95 + idx * 54;
+        if (h.lunge > 0) { baseX += 14; h.lunge--; }
+        let bob = h.hp > 0 ? Math.sin(frame * 0.12 + idx) * 2 : 0;
+        h.x = baseX; h.y = baseY;
+
+        if (combat.selectedHeroId === h.id) {
+            ctx.strokeStyle = '#66ff66'; ctx.lineWidth = 1.5;
+            ctx.strokeRect(baseX - 24, baseY - 22, 48, 46);
+        }
+
+        drawSprite(h.sprite, baseX, baseY + bob, 3, h.color, h.hp <= 0, h.flash > 0);
+        if (h.flash > 0) h.flash--;
+
+        drawUnitBar(baseX, baseY - 26, h.hp, h.maxHp, h.tempHp || 0, '#55cc55', h.name);
+    });
+
+    combat.enemies.forEach((e, idx) => {
+        let baseX = 395 - (idx % 2) * 38;
+        let baseY = 95 + idx * 54;
+        if (e.lunge > 0) { baseX -= 14; e.lunge--; }
+        let bob = e.hp > 0 ? Math.sin(frame * 0.12 + idx + 2) * 2 : 0;
+        e.x = baseX; e.y = baseY;
+
+        if (combat.focusEnemyIndex === idx && e.hp > 0) {
+            ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 1.5;
+            ctx.strokeRect(baseX - 24, baseY - 22, 48, 46);
+        }
+
+        drawSprite(e.sprite, baseX, baseY + bob, 3, e.color, e.hp <= 0, e.flash > 0);
+        if (e.flash > 0) e.flash--;
+
+        let title = e.superCharge >= 2 && e.hp > 0 ? '!! СУПЕР !!' : e.name;
+        drawUnitBar(baseX, baseY - 26, e.hp, e.maxHp, 0, '#dd4444', title);
+    });
+}
+
+function drawUnitBar(x, y, hp, maxHp, tempHp, color, label) {
+    ctx.font = 'bold 9px Courier New'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#f0e6d2';
+    ctx.fillText(label + (tempHp > 0 ? ` (+${tempHp})` : ''), x, y - 4);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x - 28, y, 56, 6);
+    ctx.fillStyle = color;
+    let w = clamp((hp / maxHp) * 54, 0, 54);
+    ctx.fillRect(x - 27, y + 1, w, 4);
+    if (tempHp > 0) {
+        ctx.fillStyle = '#44ccff';
+        let tw = clamp((tempHp / maxHp) * 54, 4, 54);
+        ctx.fillRect(x - 27, y - 2, tw, 2);
+    }
+}
+
+// ================= ГЛАВНЫЙ ЦИКЛ (60 FPS) =================
+function mainLoop() {
+    frame++;
+    ctx.save();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (shake > 0) {
+        ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+        shake *= 0.85;
+        if (shake < 0.5) shake = 0;
+    }
+
+    if (scene === 'guild') {
+        drawGuildScene();
+    } else if (scene === 'map') {
+        updateMapLogic();
+        drawMapScene();
+    } else if (scene === 'combat') {
+        if (combat.active && !combat.paused) {
+            combat.tickTimer++;
+            if (combat.tickTimer >= 55) {
+                combat.tickTimer = 0;
+                executeNextCombatTurn();
+            }
+        }
+        drawCombatScene();
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.2;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+        p.life--;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    ctx.font = 'bold 11px Courier New'; ctx.textAlign = 'center';
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        let ft = floatingTexts[i];
+        ft.y += ft.vy;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(ft.x - 48, ft.y - 10, 96, 13);
+        ctx.fillStyle = ft.color;
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ft.life--;
+        if (ft.life <= 0) floatingTexts.splice(i, 1);
+    }
+
+    ctx.restore();
+    requestAnimationFrame(mainLoop);
+}
+
+enterGuild(false);
+requestAnimationFrame(mainLoop);
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "name": "Bratrstvo Korbele: Богемия",
+  "description": "2D RPG и Auto-battler игра в сеттинге средневековой Богемии.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
