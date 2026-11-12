@@ -18,6 +18,7 @@ export interface HeroSkillInfo {
 export interface WarContractData {
     id?: string;
     name: string;
+    colorKey?: 'grey' | 'green' | 'blue' | 'purple';
     riskBadge?: string;
     needHeroes: number;
     cycles: number;
@@ -28,6 +29,9 @@ export interface WarContractData {
     lvlGain?: number;
     bonusItem?: EquipmentItem;
     rewardDesc?: string;
+    extraRewardText?: string;
+    reqClass?: string;
+    assignedHeroIds?: string[];
 }
 
 /**
@@ -86,6 +90,8 @@ export class HeroModel extends UnitBase {
         status?: HeroStatusType;
         injuries?: string[];
         price?: number;
+        unlockedTalentTiers?: number;
+        unlockedTalentCol?: number;
         equip: { weapon: string | EquipmentItem | null; armor: string | EquipmentItem | null; trinket: string | EquipmentItem | null };
     }) {
         super({
@@ -126,22 +132,80 @@ export class HeroModel extends UnitBase {
         };
 
         this.talents = TalentTreeFactory.createForHero(this.id, this.cls);
+        if (params.unlockedTalentTiers && params.unlockedTalentTiers > 0) {
+            const branchCol = params.unlockedTalentCol || 1;
+            for (let tier = 1; tier <= params.unlockedTalentTiers; tier++) {
+                const node = this.talents.find(t => t.tier === tier && t.col === branchCol);
+                if (node && !node.unlocked) {
+                    node.unlocked = true;
+                    node.applyEffect(this);
+                }
+            }
+        }
     }
 
-    public isTalentTierUnlocked(tier: number): boolean {
+    public isTalentTierUnlocked(tier: number, col?: number): boolean {
         if (tier <= 1) return true;
+        if (col !== undefined) {
+            return this.talents.some(t => t.tier === tier - 1 && t.col === col && t.unlocked);
+        }
         return this.talents.some(t => t.tier === tier - 1 && t.unlocked);
+    }
+
+    public isTalentNodeAvailable(node: TalentNode): boolean {
+        if (node.tier <= 1) return true;
+        return this.talents.some(t => t.tier === node.tier - 1 && t.col === node.col && t.unlocked);
     }
 
     public unlockTalent(talentId: string): TalentNode | null {
         if (this.talentPts <= 0) return null;
         const t = this.talents.find(x => x.id === talentId);
-        if (!t || t.unlocked || !this.isTalentTierUnlocked(t.tier)) return null;
+        if (!t || t.unlocked || !this.isTalentNodeAvailable(t)) return null;
 
         this.talentPts--;
         t.unlocked = true;
         t.applyEffect(this);
         return t;
+    }
+
+    /**
+     * Определяет цветовой ранг прокачки и одетости бойца для карточки в меню ОТРЯД:
+     * grey (Серый) -> green (Зелёный: Т1 талант + весь шмот Т1+) -> blue (Синий: Т2 талант + шмот Т2+) ->
+     * purple (Фиолетовый: Т3 талант + шмот Т3+) -> gold (Легендарный: Т3+ таланты + легендарный шмот Т4)
+     */
+    public getMasteryTier(): {
+        key: 'grey' | 'green' | 'blue' | 'purple' | 'gold';
+        label: string;
+        nextHint: string;
+    } {
+        const slots: EquipSlotType[] = ['weapon', 'armor', 'trinket'];
+        const items = slots.map(s => this.equipObj[s]);
+        const allEquipped = items.every(it => it !== null && (it.atk + it.armor + it.block > 0));
+
+        const itemTiers = items.map(it => {
+            if (!it || (it.atk + it.armor + it.block <= 0)) return 0;
+            return it.getTier();
+        });
+        const minGearTier = allEquipped ? Math.min(...itemTiers) : 0;
+
+        const hasT1 = this.talents.some(t => t.tier >= 1 && t.unlocked);
+        const hasT2 = this.talents.some(t => t.tier >= 2 && t.unlocked);
+        const hasT3 = this.talents.some(t => t.tier >= 3 && t.unlocked);
+        const unlockedCount = this.talents.filter(t => t.unlocked).length;
+
+        if (minGearTier >= 4 && hasT3 && unlockedCount >= 3) {
+            return { key: 'gold', label: 'Легендарный (V)', nextHint: 'Максимальный ранг мастерства' };
+        }
+        if (minGearTier >= 3 && hasT3) {
+            return { key: 'purple', label: 'Эпический (IV)', nextHint: 'До Жёлтого: надеть все вещи T4' };
+        }
+        if (minGearTier >= 2 && hasT2) {
+            return { key: 'blue', label: 'Редкий (III)', nextHint: 'До Фиолетового: талант Т3 и все вещи Т3+' };
+        }
+        if (minGearTier >= 1 && hasT1) {
+            return { key: 'green', label: 'Необычный (II)', nextHint: 'До Синего: талант Т2 и все вещи Т2+' };
+        }
+        return { key: 'grey', label: 'Обычный (I)', nextHint: 'До Зелёного: изучить талант Т1 и надеть 3 вещи с бонусами' };
     }
 
     public equipItem(newItem: EquipmentItem): EquipmentItem | null {

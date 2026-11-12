@@ -22,7 +22,30 @@ export class CombatPresenter {
         return Math.floor(Math.random() * sides) + 1;
     }
 
-    public startQuest(): void {
+    private recordEnemyKill(enemy: EnemyModel, killerHero: HeroModel | null = null): void {
+        const rep = this.state.expeditionReport;
+        if (!rep.hasReport) {
+            this.state.initExpeditionReport();
+        }
+        rep.enemiesKilled++;
+        rep.killedByType[enemy.name] = (rep.killedByType[enemy.name] || 0) + 1;
+        if (killerHero) {
+            rep.killsByHero[killerHero.id] = (rep.killsByHero[killerHero.id] || 0) + 1;
+        }
+    }
+
+    public startQuest(questId?: string): void {
+        const readySquad = this.state.party.filter(h => h.inSquad && h.status === 'ready' && h.hp > 0);
+        if (readySquad.length === 0) return;
+
+        if (questId) {
+            const found = this.state.dailyQuests.find(q => q.id === questId);
+            if (found) this.state.activeQuest = found;
+        } else if (!this.state.activeQuest && this.state.dailyQuests.length > 0) {
+            this.state.activeQuest = this.state.dailyQuests[0];
+        }
+
+        this.state.initExpeditionReport();
         this.state.scene = 'map';
         this.state.mapState = { dir: 'to_quest', progress: 0, ambushTriggered: false };
         this.topBarView.updateSceneLayout(this.state);
@@ -47,7 +70,7 @@ export class CombatPresenter {
                 this.startCombat(false);
             } else {
                 this.guildPresenter.advanceCycle(1);
-                this.guildPresenter.enterGuild();
+                this.guildPresenter.enterGuild(true);
             }
         }
     }
@@ -63,23 +86,29 @@ export class CombatPresenter {
         combat.isAmbush = isAmbush;
         combat.focusEnemyIndex = null;
         combat.selectedHeroId = null;
+        combat.hoveredHeroId = null;
+        combat.hoveredEnemyIndex = null;
         combat.tickTimer = 0;
         combat.psaKrevCd = 0;
         combat.psaKrevBuffTurns = 0;
 
-        const enemyCount = isAmbush ? 2 : 3;
-        const names = ['Чашник с цепом', 'Гусит-стрелок', 'Чашник-ветеран'];
+        const q = this.state.activeQuest;
+        const enemyCount = isAmbush ? 2 : (q ? q.enemyCount : 3);
+        const names = ['Чашник с цепом', 'Гусит-стрелок', 'Чашник-ветеран', 'Панцирный сотник'];
+        const enemySprites = ['husita', 'musketeer', 'halberd', 'husita'];
         combat.enemies = [];
         for (let i = 0; i < enemyCount; i++) {
-            const maxHp = 15 + this.state.questsDone * 4 + (i === 2 ? 5 : 0);
+            const hpBonus = isAmbush ? (this.state.questsDone * 3) : (q ? q.enemyHpBonus : this.state.questsDone * 4);
+            const maxHp = 14 + hpBonus + (i >= 2 ? 5 : 0);
             combat.enemies.push(new EnemyModel({
                 id: 'en_' + i,
-                name: names[i],
+                name: names[i] || 'Чашник с цепом',
+                sprite: enemySprites[i] || 'husita',
                 hp: maxHp,
                 maxHp: maxHp,
-                atkSides: 4,
+                atkSides: (!isAmbush && q) ? q.enemyAtkSides : 4,
                 initBase: 4 + i,
-                superCharge: i === 2 ? 1 : 0
+                superCharge: i >= 2 ? 1 : 0
             }));
         }
 
@@ -104,7 +133,11 @@ export class CombatPresenter {
     }
 
     public togglePause(): void {
+        if (!this.state.combat.active) return;
         this.state.combat.paused = !this.state.combat.paused;
+        if (!this.state.combat.paused) {
+            this.state.combat.selectedHeroId = null;
+        }
         this.hudView.renderCombatControls(this.state);
     }
 
@@ -115,7 +148,7 @@ export class CombatPresenter {
         combat.psaKrevBuffTurns = 6;
         this.state.shake = 10;
 
-        this.state.party.filter(h => h.status === 'ready' && h.hp > 0).forEach(h => {
+        this.state.party.filter(h => h.inSquad && h.status === 'ready' && h.hp > 0).forEach(h => {
             h.tempHp = 10;
             this.state.addParticles(h.x || 120, h.y || 120, '#ffd700', 15);
             this.state.addFloatingText("ПСЯ КРЕВ! +10 ЩИТ", h.x || 120, (h.y || 120) - 22, '#ffd700');
@@ -126,6 +159,10 @@ export class CombatPresenter {
     }
 
     public selectHeroInCombat(id: string): void {
+        if (!this.state.combat.active) return;
+        if (!this.state.combat.paused) {
+            this.state.combat.paused = true;
+        }
         this.state.combat.selectedHeroId = (this.state.combat.selectedHeroId === id) ? null : id;
         this.hudView.renderCombatControls(this.state);
     }
@@ -146,19 +183,32 @@ export class CombatPresenter {
         this.hudView.renderCombatControls(this.state);
     }
 
-    public useMasterBeer(): void {
-        if (this.state.beer <= 0) return;
-        const alive = this.state.party.filter(h => h.status === 'ready' && h.hp > 0);
-        if (!alive.length) return;
-        alive.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
-        const target = alive[0];
+    /**
+     * Автоматическое употребление пива, когда герой получает критическое ранение или у него остаётся <= 30% HP
+     */
+    private checkAutoBeerForHero(hero: HeroModel, isCriticalWound = false): void {
+        if (this.state.beer <= 0 || hero.hp <= 0 || hero.status !== 'ready') return;
+        const lowHpThreshold = Math.ceil(hero.maxHp * 0.30);
+        const isLowHp = hero.hp <= lowHpThreshold;
+        if (!isCriticalWound && !isLowHp) return;
+
         this.state.beer--;
         const heal = this.roll(10);
-        target.hp = Math.min(target.maxHp, target.hp + heal);
-        this.state.addFloatingText(`+${heal} ПИВО!`, target.x || 120, (target.y || 120) - 15, '#66ff66');
-        this.hudView.appendLog(`<span class="hl-green">ИНВЕНТАРЬ:</span> ${target.name} выпивает пиво и лечит <b>${heal} HP</b> (1d10)!`);
+        hero.hp = Math.min(hero.maxHp, hero.hp + heal);
+        const reason = isCriticalWound ? 'критическое ранение' : '≤30% HP';
+        this.state.addParticles(hero.x || 120, hero.y || 120, '#66ff66', 14);
+        this.state.addFloatingText(`+${heal} АВТО-ПИВО!`, hero.x || 120, (hero.y || 120) - 24, '#66ff66');
+        this.hudView.appendLog(`<span class="hl-green">🍺 АВТО-ПИВО (${reason}):</span> <b>${hero.name}</b> осушает кружку пива и лечит <b>${heal} HP</b> (1d10)! [Осталось: ${this.state.beer}]`);
         this.topBarView.renderStats(this.state);
         this.hudView.renderCombatControls(this.state);
+    }
+
+    public useMasterBeer(): void {
+        if (this.state.beer <= 0) return;
+        const alive = this.state.party.filter(h => h.inSquad && h.status === 'ready' && h.hp > 0);
+        if (!alive.length) return;
+        alive.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
+        this.checkAutoBeerForHero(alive[0], true);
     }
 
     public useMasterPot(): void {
@@ -169,10 +219,14 @@ export class CombatPresenter {
         this.hudView.appendLog(`<span class="hl-gold">ШТУРМОВОЙ ГОРШОК!</span> Взрыв порохового горшка наносит <b>${dmg} урона</b> (1d20) всем врагам!`);
         this.state.combat.enemies.forEach(e => {
             if (e.hp > 0) {
+                const prevHp = e.hp;
                 e.hp = Math.max(0, e.hp - dmg);
                 e.flash = 10;
                 this.state.addParticles(e.x || 360, e.y || 120, '#ff8800', 18);
                 this.state.addFloatingText(`-${dmg} БУМ!`, e.x || 360, (e.y || 120) - 15, '#ffcc00');
+                if (prevHp > 0 && e.hp === 0) {
+                    this.recordEnemyKill(e, null);
+                }
             }
         });
         this.topBarView.renderStats(this.state);
@@ -200,7 +254,7 @@ export class CombatPresenter {
         return alive[Math.floor(Math.random() * alive.length)];
     }
 
-    private applyDamageToUnit(attacker: UnitBase | null, defender: UnitBase, rawDmg: number): number {
+    private applyDamageToUnit(attacker: UnitBase | null, defender: UnitBase, rawDmg: number, isCriticalStrike = false): number {
         let dmg = rawDmg;
         if (attacker && attacker.id === 'pan') {
             if (Math.random() < 0.5) {
@@ -227,10 +281,21 @@ export class CombatPresenter {
             }
         }
 
+        const prevHp = defender.hp;
         defender.hp = Math.max(0, defender.hp - dmg);
         defender.flash = 8;
         this.state.addParticles(defender.x, defender.y, '#ff4444', 10);
         this.state.addFloatingText(`-${dmg}`, defender.x, defender.y - 18, '#ff6666');
+        if (defender.isEnemy && prevHp > 0 && defender.hp === 0) {
+            this.recordEnemyKill(
+                defender as EnemyModel,
+                attacker && !attacker.isEnemy ? (attacker as HeroModel) : null
+            );
+        } else if (!defender.isEnemy && defender.hp > 0) {
+            const heroDef = defender as HeroModel;
+            const heavyCritHit = isCriticalStrike || dmg >= Math.ceil(heroDef.maxHp * 0.35);
+            this.checkAutoBeerForHero(heroDef, heavyCritHit);
+        }
         return dmg;
     }
 
@@ -255,7 +320,7 @@ export class CombatPresenter {
         const unit = combat.turnOrder[combat.turnIndex];
         combat.turnIndex = (combat.turnIndex + 1) % combat.turnOrder.length;
 
-        const tadeusz = this.state.party.find(h => h.id === 'tadeusz' && h.status === 'ready' && h.hp > 0);
+        const tadeusz = this.state.party.find(h => h.id === 'tadeusz' && h.inSquad && h.status === 'ready' && h.hp > 0);
         if (tadeusz && Math.random() < 0.10) {
             this.state.herbs++;
             this.state.addFloatingText("+1 ТРАВА", tadeusz.x, tadeusz.y - 22, '#66ff66');
@@ -266,6 +331,12 @@ export class CombatPresenter {
                 this.state.beer += brewed;
                 this.state.addFloatingText(`+${brewed} ПИВА!`, tadeusz.x, tadeusz.y - 34, '#ffd700');
                 this.hudView.appendLog(`<span class="hl-gold">ПИВОВАРНЯ СВЯТОШИ!</span> Из 5 трав Брат Тадеуш сварил <b>${brewed} бут. пива</b> (1d4)!`);
+                const criticallyLow = this.state.party
+                    .filter(h => h.inSquad && h.status === 'ready' && h.hp > 0 && h.hp <= Math.ceil(h.maxHp * 0.30))
+                    .sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
+                if (criticallyLow.length > 0) {
+                    this.checkAutoBeerForHero(criticallyLow[0], false);
+                }
             }
             this.topBarView.renderStats(this.state);
         }
@@ -288,11 +359,15 @@ export class CombatPresenter {
                     this.state.addFloatingText(`В ТРУП! -${pDmg}`, randEnemy.x, randEnemy.y - 15, '#ccc');
                     this.hudView.appendLog(`<span class="hl-blue">Внезапный Пистоль (20%):</span> Шимон стреляет из пистоля на ${pDmg} ур. прямо в труп (${randEnemy.name})!`);
                 } else {
+                    const prevHp = randEnemy.hp;
                     randEnemy.hp = Math.max(0, randEnemy.hp - pDmg);
                     randEnemy.flash = 8;
                     this.state.addParticles(randEnemy.x, randEnemy.y, '#ffcc00', 14);
                     this.state.addFloatingText(`ПИСТОЛЬ -${pDmg}!`, randEnemy.x, randEnemy.y - 18, '#ffd700');
                     this.hudView.appendLog(`<span class="hl-blue">Внезапный Пистоль (20%):</span> Шимон палит из пистоля в ${randEnemy.name} на <b>${pDmg} урона</b>!`);
+                    if (prevHp > 0 && randEnemy.hp === 0) {
+                        this.recordEnemyKill(randEnemy, hero);
+                    }
                 }
                 if (this.checkCombatEnd()) return;
             }
@@ -314,9 +389,13 @@ export class CombatPresenter {
                         const perEnemy = Math.max(1, Math.floor(totalRoll / aliveEnemies.length));
                         this.hudView.appendLog(`<b>${hero.name}</b> бьет <span class="hl-gold">«Атакой плашмя»</span> (${totalRoll} ур. в сумме) — по ${perEnemy} урона всем врагам!`);
                         aliveEnemies.forEach(e => {
+                            const prevHp = e.hp;
                             e.hp = Math.max(0, e.hp - perEnemy);
                             e.flash = 8;
                             this.state.addFloatingText(`-${perEnemy}`, e.x, e.y - 15, '#ff8866');
+                            if (prevHp > 0 && e.hp === 0) {
+                                this.recordEnemyKill(e, hero);
+                            }
                         });
                     }
                 } else {
@@ -326,7 +405,7 @@ export class CombatPresenter {
                     this.applyDamageToUnit(hero, target, d);
                 }
             } else if (hero.cls === 'Святоша') {
-                const woundedAllies = this.state.party.filter(h => h.status === 'ready' && h.hp > 0 && h.hp < h.maxHp);
+                const woundedAllies = this.state.party.filter(h => h.inSquad && h.status === 'ready' && h.hp > 0 && h.hp < h.maxHp);
                 if (hero.shouldUsePrimarySkill(hero.cd2 <= 0 && woundedAllies.length > 0)) {
                     hero.cd2 = hero.maxCd2; hero.lastUsedSkill = 1;
                     woundedAllies.sort((a, b) => a.hp - b.hp);
@@ -372,7 +451,7 @@ export class CombatPresenter {
             }
         } else {
             const enemy = unit as EnemyModel;
-            const aliveHeroes = this.state.party.filter(h => h.status === 'ready' && h.hp > 0);
+            const aliveHeroes = this.state.party.filter(h => h.inSquad && h.status === 'ready' && h.hp > 0);
             if (!aliveHeroes.length) return;
             const targetHero = aliveHeroes[Math.floor(Math.random() * aliveHeroes.length)];
 
@@ -387,7 +466,7 @@ export class CombatPresenter {
                 } else {
                     const finalDmg = Math.max(1, rawSuper - targetHero.armor);
                     this.hudView.appendLog(`<span class="hl-red">СУПЕР-УДАР!</span> ${enemy.name} бьет цепом по ${targetHero.name} (${rawSuper} ур., поглощено броней: ${targetHero.armor})!`);
-                    this.applyDamageToUnit(enemy, targetHero, finalDmg);
+                    this.applyDamageToUnit(enemy, targetHero, finalDmg, true);
                 }
             } else {
                 const rawDmg = this.roll(enemy.atkSides);
@@ -404,27 +483,55 @@ export class CombatPresenter {
     public checkCombatEnd(): boolean {
         const combat = this.state.combat;
         const enemiesAlive = combat.enemies.some(e => e.hp > 0);
-        const heroesAlive = this.state.party.some(h => h.status === 'ready' && h.hp > 0);
+        const heroesAlive = this.state.party.some(h => h.inSquad && h.status === 'ready' && h.hp > 0);
 
         if (!enemiesAlive) {
             combat.active = false;
-            const rewardGold = combat.isAmbush ? (20 + this.roll(10)) : (45 + this.roll(15));
+            const q = this.state.activeQuest;
+            let rewardGold = 45 + this.roll(15);
+            if (combat.isAmbush) {
+                rewardGold = 20 + this.roll(10);
+            } else if (q) {
+                const spread = Math.max(1, q.goldMax - q.goldMin + 1);
+                rewardGold = q.goldMin + Math.floor(Math.random() * spread);
+            }
             this.state.gold += rewardGold;
             if (!combat.isAmbush) this.state.questsDone++;
 
-            this.state.party.filter(h => h.status === 'ready' && h.hp > 0).forEach(h => {
+            const rep = this.state.expeditionReport;
+            if (!rep.hasReport) this.state.initExpeditionReport();
+            rep.outcome = 'victory';
+            rep.battlesWon++;
+            if (combat.isAmbush) rep.ambushFought = true;
+            rep.goldEarned += rewardGold;
+
+            this.state.party.filter(h => h.inSquad && h.status === 'ready' && h.hp > 0).forEach(h => {
                 h.tempHp = 0;
                 h.exp += 10;
                 if (h.exp >= 20) {
                     h.exp -= 20; h.lvl++; h.talentPts++; h.maxHp += 3; h.hp += 3;
+                    rep.levelUps.push(`${h.name} (Ур.${h.lvl})`);
                     this.hudView.appendLog(`<span class="hl-green">НОВЫЙ УРОВЕНЬ!</span> ${h.name} достиг ${h.lvl} ур. и получил +1 очко талантов!`);
                 }
             });
 
             let lootMsg = '';
             if (Math.random() < 0.7) {
-                this.state.spareEquip.push(new EquipmentItem('Трофейный клевец', 'weapon', 2, 0, 5));
-                lootMsg = ` Также добыт <b>Трофейный клевец (+2 Ур)</b> — загляните в меню ОТРЯД!`;
+                const trophyPool = [
+                    new EquipmentItem('Трофейный клевец', 'weapon', 2, 0, 5, 'Тяжелый боевой клевец чашников. Пробивает доспехи: даёт +2 к урону и +5% к шансу блока.'),
+                    new EquipmentItem('Гуситский павеза-щит', 'armor', 0, 2, 10, 'Окованный пехотный щит. Защищает от стрел и цепов: даёт +2 к броне и +10% к шансу блока.'),
+                    new EquipmentItem('Перстень сотника', 'trinket', 1, 1, 5, 'Богатый трофейный перстень командира. Повышает боевой дух: +1 к урону, +1 к броне, +5% к блоку.')
+                ];
+                const dropped = trophyPool[Math.floor(Math.random() * trophyPool.length)];
+                this.state.spareEquip.push(dropped);
+                const bonusParts: string[] = [];
+                if (dropped.atk > 0) bonusParts.push(`+${dropped.atk} Ур`);
+                if (dropped.armor > 0) bonusParts.push(`+${dropped.armor} Бр`);
+                if (dropped.block > 0) bonusParts.push(`+${dropped.block}% Блок`);
+                const label = `${dropped.name} (${bonusParts.join(', ')})`;
+                rep.lootItems.push(label);
+                rep.lootObjects.push(dropped);
+                lootMsg = ` Также добыт <b>${label}</b> — загляните в меню ОТРЯД!`;
             }
             this.hudView.appendLog(`<span class="hl-gold">ПОБЕДА!</span> Чашники разбиты! Награда: <b>${rewardGold} грошей</b>.${lootMsg}`);
             this.topBarView.renderStats(this.state);
@@ -434,9 +541,13 @@ export class CombatPresenter {
 
         if (!heroesAlive) {
             combat.active = false;
+            const rep = this.state.expeditionReport;
+            if (!rep.hasReport) this.state.initExpeditionReport();
+            rep.outcome = 'defeat';
+
             this.hudView.appendLog(`<span class="hl-red">ПОРАЖЕНИЕ!</span> Отряд разбит и с новыми шишками отступает в таверну...`);
             this.state.party.forEach(h => {
-                if (h.status === 'ready') {
+                if (h.inSquad && h.status === 'ready') {
                     h.hp = Math.max(6, Math.floor(h.maxHp * 0.4));
                     h.tempHp = 0;
                     h.injuries.push('Побит цепом');

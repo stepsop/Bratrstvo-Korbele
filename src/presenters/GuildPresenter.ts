@@ -22,10 +22,42 @@ export class GuildPresenter {
         return Math.floor(Math.random() * sides) + 1;
     }
 
-    public enterGuild(): void {
+    public toggleWarTrackerPopup(event?: Event): void {
+        this.topBarView.togglePopup(this.state, event);
+    }
+
+    public closeWarTrackerPopup(event?: Event): void {
+        this.topBarView.closePopup(this.state, event);
+    }
+
+    public enterGuild(showBattleSummary = false): void {
+        if (showBattleSummary && this.state.expeditionReport.hasReport && this.state.expeditionReport.outcome === 'defeat') {
+            this.advanceCycle(1);
+        }
+
+        // По приходу в таверну все живые герои восполняют здоровье на максимум, но травмы сохраняются
+        this.state.party.forEach(h => {
+            if (h.status !== 'dead') {
+                h.hp = h.maxHp;
+                h.tempHp = 0;
+            }
+        });
+
         this.state.scene = 'guild';
         this.topBarView.renderStats(this.state);
         this.topBarView.updateSceneLayout(this.state);
+
+        if (showBattleSummary && this.state.expeditionReport.hasReport) {
+            this.state.expeditionReport.hasReport = false;
+            this.state.expeditionReport.selectedLootIndex = null;
+            this.npcView.renderBattleSummaryModal(this.state);
+        }
+    }
+
+    public inspectBattleLoot(idx: number): void {
+        const rep = this.state.expeditionReport;
+        rep.selectedLootIndex = (rep.selectedLootIndex === idx) ? null : idx;
+        this.npcView.renderBattleSummaryModal(this.state);
     }
 
     public advanceCycle(amount = 1): void {
@@ -48,6 +80,7 @@ export class GuildPresenter {
                 }
             });
         }
+        this.state.generateDailyQuests();
         this.topBarView.renderStats(this.state);
     }
 
@@ -152,6 +185,12 @@ export class GuildPresenter {
     }
 
     public openMercsDialog(): void {
+        const jokes = this.state.mercJokes;
+        if (jokes && jokes.length > 0) {
+            const others = jokes.filter(j => j !== this.state.currentMercJoke);
+            const pool = others.length > 0 ? others : jokes;
+            this.state.currentMercJoke = pool[Math.floor(Math.random() * pool.length)];
+        }
         this.npcView.renderMercsDialog(this.state);
     }
 
@@ -159,18 +198,76 @@ export class GuildPresenter {
         const m = this.state.mercsForHire[idx];
         if (!m || this.state.gold < m.price) return;
 
+        const totalAlive = this.state.party.filter(h => h.status !== 'dead').length;
+        if (totalAlive >= this.state.squadMax + this.state.reserveMax) return;
+
         this.state.gold -= m.price;
         const currentSquad = this.state.party.filter(h => h.inSquad && h.status !== 'dead').length;
         m.inSquad = (currentSquad < this.state.squadMax);
         this.state.mercsForHire.splice(idx, 1);
         this.state.party.push(m);
 
+        this.hudView.appendLog(`<span class="hl-green">СТОЛ НАЕМНИКОВ:</span> В гильдию нанят боец <b>${m.name}</b> (${m.cls}, Ур.${m.lvl})!`);
         this.topBarView.renderStats(this.state);
-        this.openMercsDialog();
+        this.npcView.renderMercsDialog(this.state);
     }
 
     public openVerbirzDialog(): void {
+        // Очищаем слоты от героев, которые больше не в статусе ready
+        this.state.warCampaigns.forEach(c => {
+            if (!c.assignedHeroIds) c.assignedHeroIds = [];
+            c.assignedHeroIds = c.assignedHeroIds.filter(hid => {
+                const h = this.state.party.find(p => p.id === hid);
+                return !!h && h.status === 'ready';
+            });
+        });
         this.npcView.renderVerbirzDialog(this.state);
+    }
+
+    public assignHeroToWarSlot(heroId: string, campIdx: number, slotIdx?: number): void {
+        const hero = this.state.party.find(p => p.id === heroId);
+        const camp = this.state.warCampaigns[campIdx];
+        if (!hero || !camp || hero.status !== 'ready') return;
+
+        // Проверка требования по классу, если указано «Нужен: ...»
+        if (camp.reqClass && camp.reqClass.startsWith('Нужен:')) {
+            const reqCls = camp.reqClass.replace('Нужен:', '').trim();
+            if (hero.cls !== reqCls) {
+                this.hudView.appendLog(`<span class="hl-red">ВЕРБОВЩИК:</span> Для похода «${camp.name}» требуется класс <b>${reqCls}</b>!`);
+                return;
+            }
+        }
+
+        // Убираем героя из других слотов кампаний, если он там был
+        this.state.warCampaigns.forEach(c => {
+            if (!c.assignedHeroIds) c.assignedHeroIds = [];
+            const i = c.assignedHeroIds.indexOf(heroId);
+            if (i >= 0) c.assignedHeroIds.splice(i, 1);
+        });
+
+        if (!camp.assignedHeroIds) camp.assignedHeroIds = [];
+        if (slotIdx !== undefined && slotIdx >= 0 && slotIdx < camp.needHeroes) {
+            if (slotIdx < camp.assignedHeroIds.length) {
+                camp.assignedHeroIds[slotIdx] = heroId;
+            } else if (camp.assignedHeroIds.length < camp.needHeroes) {
+                camp.assignedHeroIds.push(heroId);
+            }
+        } else if (camp.assignedHeroIds.length < camp.needHeroes) {
+            camp.assignedHeroIds.push(heroId);
+        } else {
+            camp.assignedHeroIds[camp.needHeroes - 1] = heroId;
+        }
+
+        this.openVerbirzDialog();
+    }
+
+    public removeHeroFromWarSlot(heroId: string): void {
+        this.state.warCampaigns.forEach(c => {
+            if (!c.assignedHeroIds) return;
+            const idx = c.assignedHeroIds.indexOf(heroId);
+            if (idx >= 0) c.assignedHeroIds.splice(idx, 1);
+        });
+        this.openVerbirzDialog();
     }
 
     public selectRecruiterCampaign(idx: number): void {
@@ -190,23 +287,34 @@ export class GuildPresenter {
         this.openVerbirzDialog();
     }
 
-    public dispatchHeroesToWar(): void {
-        const camp = this.state.warCampaigns[this.state.selectedRecruiterCampaign];
-        if (this.state.selectedHeroesForWar.length !== camp.needHeroes) return;
+    public dispatchHeroesToWar(campIdx?: number): void {
+        const targetIdx = campIdx !== undefined ? campIdx : this.state.selectedRecruiterCampaign;
+        const camp = this.state.warCampaigns[targetIdx];
+        if (!camp) return;
 
-        this.state.selectedHeroesForWar.forEach(hid => {
+        const heroIds = (camp.assignedHeroIds && camp.assignedHeroIds.length === camp.needHeroes)
+            ? [...camp.assignedHeroIds]
+            : (this.state.selectedHeroesForWar.length === camp.needHeroes ? [...this.state.selectedHeroesForWar] : []);
+
+        if (heroIds.length !== camp.needHeroes) return;
+
+        const sentNames: string[] = [];
+        heroIds.forEach(hid => {
             const h = this.state.party.find(p => p.id === hid);
-            if (h) {
+            if (h && h.status === 'ready') {
                 h.status = 'war';
+                h.inSquad = false;
                 h.timer = camp.cycles;
                 h.warContract = { ...camp };
+                sentNames.push(h.name);
             }
         });
 
+        camp.assignedHeroIds = [];
         this.state.selectedHeroesForWar = [];
+        this.hudView.appendLog(`<span class="hl-gold">КОРОЛЕВСКИЙ ВЕРБОВЩИК:</span> ${sentNames.join(', ')} отправлены в поход «<b>${camp.name}</b>» на ${camp.cycles} ц.!`);
         this.topBarView.renderStats(this.state);
-        this.squadPresenter.closeSquadModal();
-        this.topBarView.updateSceneLayout(this.state);
+        this.openVerbirzDialog();
     }
 
     public openQuestsDialog(): void {

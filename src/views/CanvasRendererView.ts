@@ -1,64 +1,7 @@
 import { GameStateModel, GuildHotspot, TavernBgPresetKey } from '../models/GameStateModel';
 import { HeroModel } from '../models/HeroModel';
-
-export const SPRITES: Record<string, string[]> = {
-    szlachta: [
-        "   RRRRRR   ",
-        "  RRRRRRRR  ",
-        "  ..####..  ",
-        "   #.##.#   ",
-        "  ########  ",
-        "   ######   ",
-        " RRRRRRRRRR ",
-        "RRRR G RRRRR",
-        "RRR  G   RRR",
-        "  ########  ",
-        "  ###  ###  ",
-        " ###    ### "
-    ],
-    monk: [
-        "    ####    ",
-        "  ########  ",
-        "  #..##..#  ",
-        "   ######   ",
-        "    ####    ",
-        "  ########  ",
-        " ########## ",
-        "#### G  ####",
-        "### GGG  ###",
-        "  ########  ",
-        "  ########  ",
-        "  ###  ###  "
-    ],
-    musketeer: [
-        "  ########  ",
-        " ########## ",
-        "     ####   ",
-        "    #.##.#  ",
-        "   ######   ",
-        "  ########  ",
-        " ####..#### ",
-        "####....####",
-        "###  ..  ###",
-        "   ######   ",
-        "   ##  ##   ",
-        "  ###  ###  "
-    ],
-    husita: [
-        "    ....    ",
-        "   ......   ",
-        "  ........  ",
-        "   #.##.#   ",
-        "   ######   ",
-        "  RRRRRRRR  ",
-        " RRRRGGGRRR ",
-        "RRRR G G RRR",
-        "RRR  GGG RRR",
-        "   ######   ",
-        "   ##  ##   ",
-        "  ###  ###  "
-    ]
-};
+import { WoodenFrameDrawer } from './WoodenFrameDrawer';
+import { PortraitCanvasDrawer } from './PortraitCanvasDrawer';
 
 interface NpcCutoutLayer {
     img: HTMLImageElement;
@@ -75,8 +18,7 @@ interface BgLayer {
 }
 
 /**
- * View-компонент отрисовки на HTML5 Canvas с поддержкой мульти-форматных фонов (16:9, 4:3, 3:4, 9:16)
- * и отдельных независимых спрайтов НПС с попиксельной контурной подсветкой (MVP View)
+ * View-компонент отрисовки сцен на HTML5 Canvas (SRP: отвечает за рендер игровых сцен Гильдии, Карты и Боя)
  */
 export class CanvasRendererView {
     public readonly canvas: HTMLCanvasElement;
@@ -88,12 +30,34 @@ export class CanvasRendererView {
         '9x16': { img: new Image(), loaded: false }
     };
     private npcLayers: Record<string, NpcCutoutLayer> = {};
+    private static unitImages: Record<string, { img: HTMLImageElement; loaded: boolean }> = {};
 
     constructor(canvasId = 'view', hotspots: GuildHotspot[] = []) {
         this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
         this.ctx = this.canvas.getContext('2d')!;
         this.initBackgrounds();
         this.initNpcCutoutSprites(hotspots);
+        CanvasRendererView.initUnitCutoutSprites();
+    }
+
+    public static initUnitCutoutSprites(): void {
+        if (Object.keys(CanvasRendererView.unitImages).length > 0) return;
+        const urls: Record<string, string> = {
+            szlachta:  'sprites/unit_knight.png?v=1',
+            monk:      'sprites/unit_halberd.png?v=1',
+            halberd:   'sprites/unit_halberd.png?v=1',
+            musketeer: 'sprites/unit_musketeer.png?v=1',
+            husita:    'sprites/unit_flail.png?v=1'
+        };
+        Object.keys(urls).forEach(key => {
+            const img = new Image();
+            const entry = { img, loaded: false };
+            CanvasRendererView.unitImages[key] = entry;
+            img.onload = () => {
+                entry.loaded = true;
+            };
+            img.src = urls[key];
+        });
     }
 
     private initBackgrounds(): void {
@@ -103,18 +67,16 @@ export class CanvasRendererView {
             '3x4':  'backgrounds/tavern_bg_3x4.png',
             '9x16': 'backgrounds/tavern_bg_9x16.png'
         };
+        const cacheBust = '?v=7';
         (Object.keys(urls) as TavernBgPresetKey[]).forEach(key => {
             const entry = this.bgImages[key];
             entry.img.onload = () => {
                 entry.loaded = true;
             };
-            entry.img.src = urls[key];
+            entry.img.src = urls[key] + cacheBust;
         });
     }
 
-    /**
-     * Определяет оптимальный размер фона под текущее соотношение сторон окна/телефона (Landscape / Portrait)
-     */
     public updateResponsiveBgPreset(state: GameStateModel): void {
         const vp = document.getElementById('viewport-container') || this.canvas;
         const rect = vp.getBoundingClientRect();
@@ -132,13 +94,18 @@ export class CanvasRendererView {
             nextPreset = '9x16';
         }
         state.activeBgPreset = nextPreset;
+
+        const preset = state.tavernBgPresets[nextPreset] || state.tavernBgPresets['4x3'];
+        const targetW = state.scene === 'guild' ? preset.width : 520;
+        const targetH = state.scene === 'guild' ? preset.height : 290;
+        if (this.canvas.width !== targetW || this.canvas.height !== targetH) {
+            this.canvas.width = targetW;
+            this.canvas.height = targetH;
+        }
     }
 
-    /**
-     * Загружает отдельные cutout-спрайты для всех 5 НПС/объектов таверны
-     * и генерирует для каждого золотой контур (Sprite Outline + Highlight) по форме самого спрайта
-     */
     private initNpcCutoutSprites(hotspots: GuildHotspot[]): void {
+        const cacheBust = '?v=7';
         hotspots.forEach(h => {
             const img = new Image();
             const glowCanvas = document.createElement('canvas');
@@ -161,16 +128,18 @@ export class CanvasRendererView {
                 glowCanvas.height = H + 8;
 
                 const gctx = glowCanvas.getContext('2d')!;
-                // Читаем альфа-маску спрайта для точного попадания мышью и контурного свечения
-                const tmp = document.createElement('canvas');
-                tmp.width = W;
-                tmp.height = H;
-                const tctx = tmp.getContext('2d')!;
-                tctx.drawImage(img, 0, 0);
-                const imgData = tctx.getImageData(0, 0, W, H);
-                layer.alphaData = imgData.data;
+                try {
+                    const tmp = document.createElement('canvas');
+                    tmp.width = W;
+                    tmp.height = H;
+                    const tctx = tmp.getContext('2d')!;
+                    tctx.drawImage(img, 0, 0);
+                    const imgData = tctx.getImageData(0, 0, W, H);
+                    layer.alphaData = imgData.data;
+                } catch {
+                    layer.alphaData = null;
+                }
 
-                // Создаем золотой силуэт для контурной обводки спрайта (как в изометрических RPG / Unity Sprite Outline)
                 const sil = document.createElement('canvas');
                 sil.width = W;
                 sil.height = H;
@@ -180,7 +149,6 @@ export class CanvasRendererView {
                 sctx.fillStyle = '#ffd700';
                 sctx.fillRect(0, 0, W, H);
 
-                // Рисуем контур толщиной 4px вокруг реального силуэта спрайта
                 const offsets = [
                     [-4, 0], [4, 0], [0, -4], [0, 4],
                     [-3, -3], [3, -3], [-3, 3], [3, 3]
@@ -189,7 +157,6 @@ export class CanvasRendererView {
                     gctx.drawImage(sil, 4 + ox, 4 + oy);
                 });
 
-                // Поверх золотого контура рисуем сам спрайт с легким теплым высветлением
                 gctx.drawImage(img, 4, 4);
                 gctx.save();
                 gctx.globalCompositeOperation = 'source-atop';
@@ -199,14 +166,10 @@ export class CanvasRendererView {
 
                 layer.loaded = true;
             };
-            img.src = h.spriteUrl;
+            img.src = h.spriteUrl + cacheBust;
         });
     }
 
-    /**
-     * Попиксельная проверка попадания курсора/касания в непрозрачный пиксель отдельного спрайта НПС
-     * с учетом активного размера фона (16:9, 4:3, 3:4, 9:16)
-     */
     public hitTestHotspot(h: GuildHotspot, canvasX: number, canvasY: number, state?: GameStateModel): boolean {
         const p = state
             ? state.getActiveHotspotPlacement(h)
@@ -232,34 +195,82 @@ export class CanvasRendererView {
         return Math.max(min, Math.min(max, v));
     }
 
-    public drawSprite(key: string, cx: number, cy: number, scale: number, mainColor = '#fff', dead = false, flash = false): void {
-        const grid = SPRITES[key];
-        if (!grid) return;
-        const size = 12;
-        const sx = Math.floor(cx - (size * scale) / 2);
-        const sy = Math.floor(cy - (size * scale) / 2);
+    public drawSprite(
+        key: string,
+        cx: number,
+        cy: number,
+        scale: number,
+        _mainColor = '#fff',
+        dead = false,
+        flash = false,
+        flipX = false,
+        highlightColor: string | null = null
+    ): void {
+        const unitEntry = CanvasRendererView.unitImages[key] || CanvasRendererView.unitImages.szlachta;
+        if (unitEntry && unitEntry.loaded && unitEntry.img.naturalWidth > 0) {
+            const ctx = this.ctx;
+            const targetH = scale * 19;
+            const aspect = unitEntry.img.naturalWidth / unitEntry.img.naturalHeight;
+            const targetW = targetH * aspect;
 
-        for (let r = 0; r < size; r++) {
-            for (let c = 0; c < size; c++) {
-                const ch = grid[r][c];
-                if (ch === ' ') continue;
-                if (flash) this.ctx.fillStyle = '#fff';
-                else if (dead) this.ctx.fillStyle = '#554444';
-                else if (ch === '#') this.ctx.fillStyle = mainColor;
-                else if (ch === '.') this.ctx.fillStyle = '#ccc';
-                else if (ch === 'G') this.ctx.fillStyle = '#ffd700';
-                else if (ch === 'R') this.ctx.fillStyle = '#cc3333';
+            ctx.save();
+            ctx.imageSmoothingEnabled = false;
 
-                if (dead) {
-                    this.ctx.fillRect(sx + r * scale, sy + (size - c) * scale * 0.6 + 12, scale, scale);
-                } else {
-                    this.ctx.fillRect(sx + c * scale, sy + r * scale, scale, scale);
-                }
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+            ctx.beginPath();
+            ctx.ellipse(cx, cy + (dead ? 14 : targetH * 0.44), targetW * 0.38, 4.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (highlightColor && !dead) {
+                ctx.save();
+                ctx.strokeStyle = highlightColor;
+                ctx.lineWidth = 2;
+                ctx.fillStyle = highlightColor === '#ffd700'
+                    ? 'rgba(255, 215, 0, 0.22)'
+                    : 'rgba(102, 255, 102, 0.16)';
+                ctx.beginPath();
+                ctx.ellipse(cx, cy + targetH * 0.44, targetW * 0.48, 7, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
             }
+
+            ctx.translate(cx, cy);
+            if (dead) {
+                ctx.translate(0, 10);
+                ctx.rotate(flipX ? Math.PI / 2 : -Math.PI / 2);
+                ctx.globalAlpha = 0.55;
+            } else if (flipX) {
+                ctx.scale(-1, 1);
+            }
+
+            if (highlightColor && !dead) {
+                ctx.save();
+                ctx.shadowColor = highlightColor;
+                ctx.shadowBlur = 8;
+                const offsets = [
+                    [-1.5, 0], [1.5, 0], [0, -1.5], [0, 1.5],
+                    [-1.2, -1.2], [1.2, -1.2], [-1.2, 1.2], [1.2, 1.2]
+                ];
+                offsets.forEach(([ox, oy]) => {
+                    ctx.drawImage(unitEntry.img, -targetW / 2 + ox, -targetH / 2 + oy, targetW, targetH);
+                });
+                ctx.restore();
+            }
+
+            if (flash) {
+                ctx.filter = 'brightness(2.6) contrast(1.2)';
+            } else if (highlightColor && !dead) {
+                ctx.filter = 'brightness(1.18) contrast(1.06)';
+            }
+
+            ctx.drawImage(unitEntry.img, -targetW / 2, -targetH / 2, targetW, targetH);
+            ctx.restore();
         }
     }
 
     public renderFrame(state: GameStateModel): void {
+        this.updateResponsiveBgPreset(state);
         const ctx = this.ctx;
         ctx.save();
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -268,6 +279,11 @@ export class CanvasRendererView {
             ctx.translate((Math.random() - 0.5) * state.shake, (Math.random() - 0.5) * state.shake);
             state.shake *= 0.85;
             if (state.shake < 0.5) state.shake = 0;
+        }
+
+        const gameContainer = document.getElementById('game-container');
+        if (gameContainer) {
+            gameContainer.classList.toggle('guild-scene-active', state.scene === 'guild' || state.scene === 'combat');
         }
 
         if (state.scene === 'guild') {
@@ -303,8 +319,6 @@ export class CanvasRendererView {
         ctx.restore();
     }
 
-    private static sharedSprites: Record<string, HTMLImageElement> = {};
-
     public drawGuildScene(state: GameStateModel): void {
         this.updateResponsiveBgPreset(state);
         const ctx = this.ctx;
@@ -316,10 +330,14 @@ export class CanvasRendererView {
         } else if (fallbackBg && fallbackBg.loaded) {
             ctx.drawImage(fallbackBg.img, 0, 0, this.canvas.width, this.canvas.height);
         } else {
-            this.drawDetailedTavernArt(state.frame);
+            ctx.fillStyle = '#140f0a';
+            ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         }
 
-        // Отрисовка каждого отдельного независимого спрайта НПС поверх нового чистого фона таверны
+        ctx.save();
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
         for (const h of state.guildHotspots) {
             const layer = this.npcLayers[h.id];
             if (!layer || !layer.loaded) continue;
@@ -327,14 +345,13 @@ export class CanvasRendererView {
             const scaleX = this.canvas.width / p.bgW;
             const scaleY = this.canvas.height / p.bgH;
 
-            // Мягкая тень на каменном полу под столом наемников и вербовщиком
-            if (h.id === 'mercs' || h.id === 'verbirz') {
+            if (h.id === 'verbirz') {
                 ctx.save();
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
                 ctx.beginPath();
                 const cx = (p.srcX + p.srcW * 0.5) * scaleX;
                 const cy = (p.srcY + p.srcH * 0.93) * scaleY;
-                const rx = (p.srcW * (h.id === 'mercs' ? 0.46 : 0.36)) * scaleX;
+                const rx = (p.srcW * 0.36) * scaleX;
                 const ry = (p.srcH * 0.08) * scaleY;
                 ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
                 ctx.fill();
@@ -351,7 +368,6 @@ export class CanvasRendererView {
             );
         }
 
-        // Подсветка контура самого спрайта при наведении
         if (state.hoveredHotspot) {
             const h = state.hoveredHotspot;
             const layer = this.npcLayers[h.id];
@@ -359,8 +375,8 @@ export class CanvasRendererView {
             const scaleX = this.canvas.width / p.bgW;
             const scaleY = this.canvas.height / p.bgH;
 
-            ctx.save();
             if (layer && layer.loaded) {
+                ctx.save();
                 const padX = (4 / layer.w) * p.srcW;
                 const padY = (4 / layer.h) * p.srcH;
                 const dx = (p.srcX - padX) * scaleX;
@@ -368,43 +384,46 @@ export class CanvasRendererView {
                 const dw = (p.srcW + padX * 2) * scaleX;
                 const dh = (p.srcH + padY * 2) * scaleY;
                 ctx.drawImage(layer.glowCanvas, dx, dy, dw, dh);
+                ctx.restore();
             }
+        }
+        ctx.restore();
 
-            // Всплывающая табличка с названием над подсвеченным спрайтом
-            ctx.font = 'bold 12px Courier New';
-            const tw = ctx.measureText(h.title).width + 16;
+        WoodenFrameDrawer.drawWoodenFrame(ctx, this.canvas.width, this.canvas.height);
+
+        if (state.hoveredHotspot) {
+            const h = state.hoveredHotspot;
+            const p = state.getActiveHotspotPlacement(h);
+            const scaleX = this.canvas.width / p.bgW;
+            const scaleY = this.canvas.height / p.bgH;
+            const uiScale = Math.max(1, Math.round(Math.min(this.canvas.width / 520, this.canvas.height / 290)));
+
+            ctx.save();
+            ctx.font = `bold ${12 * uiScale}px Courier New`;
+            const tw = ctx.measureText(h.title).width + 16 * uiScale;
+            const th = 20 * uiScale;
             const centerCanvasX = (p.srcX + p.srcW * 0.5) * scaleX;
             const topCanvasY = p.srcY * scaleY;
-            const tx = this.clamp(centerCanvasX - tw / 2, 6, this.canvas.width - tw - 6);
-            const ty = this.clamp(topCanvasY - 22, 4, this.canvas.height - 24);
+            const tx = this.clamp(centerCanvasX - tw / 2, 12 * uiScale, this.canvas.width - tw - 12 * uiScale);
+            const ty = this.clamp(topCanvasY - 22 * uiScale, 12 * uiScale, this.canvas.height - 30 * uiScale);
 
             ctx.fillStyle = 'rgba(18, 13, 9, 0.94)';
-            ctx.fillRect(tx, ty, tw, 20);
+            ctx.fillRect(tx, ty, tw, th);
             ctx.strokeStyle = '#ffd700';
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(tx, ty, tw, 20);
+            ctx.lineWidth = 1.5 * uiScale;
+            ctx.strokeRect(tx, ty, tw, th);
 
             ctx.fillStyle = '#ffd700';
             ctx.textAlign = 'center';
-            ctx.fillText(h.title, tx + tw / 2, ty + 14);
+            ctx.fillText(h.title, tx + tw / 2, ty + 14 * uiScale);
             ctx.restore();
         }
-    }
-
-    private drawDetailedTavernArt(frame: number): void {
-        const ctx = this.ctx;
-        ctx.fillStyle = '#26211d'; ctx.fillRect(0, 0, 520, 118);
-        ctx.fillStyle = '#2d2823'; ctx.fillRect(0, 142, 520, 148);
-        ctx.fillStyle = (frame % 24 < 12) ? '#ffd700' : '#fff394';
-        ctx.fillRect(439, 74, 4, 4);
     }
 
     public drawMapScene(state: GameStateModel): void {
         const ctx = this.ctx;
         ctx.fillStyle = '#c8b082';
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        ctx.strokeStyle = '#5c4028'; ctx.lineWidth = 6;
-        ctx.strokeRect(4, 4, this.canvas.width - 8, this.canvas.height - 8);
 
         ctx.fillStyle = '#3d2817'; ctx.font = 'bold 16px Courier New'; ctx.textAlign = 'center';
         ctx.fillText('~ КАРТА КОРОЛЕВСТВА БОГЕМИЯ ~', this.canvas.width / 2, 32);
@@ -435,27 +454,27 @@ export class CanvasRendererView {
         this.drawSprite('szlachta', px, py - 8 + Math.sin(state.frame * 0.25) * 3, 2, '#2b1d12');
         ctx.fillStyle = '#8b0000';
         ctx.fillText(state.mapState.dir === 'to_quest' ? 'Идем на задание...' : 'Возвращаемся в гильдию...', this.canvas.width / 2, 265);
+
+        WoodenFrameDrawer.drawWoodenFrame(ctx, this.canvas.width, this.canvas.height);
     }
 
     public drawCombatScene(state: GameStateModel): void {
         const ctx = this.ctx;
         const combat = state.combat;
-        ctx.fillStyle = '#0d0907';
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-        ctx.strokeStyle = '#c69c6d'; ctx.lineWidth = 4;
-        ctx.strokeRect(20, 30, this.canvas.width - 40, this.canvas.height - 52);
-        ctx.strokeStyle = '#5c3d22'; ctx.lineWidth = 2;
-        ctx.strokeRect(26, 36, this.canvas.width - 52, this.canvas.height - 64);
+        const W = this.canvas.width;
+        const H = this.canvas.height;
+        const T = 9;
 
         ctx.fillStyle = '#1f1610';
-        ctx.fillRect(28, 38, this.canvas.width - 56, this.canvas.height - 68);
+        ctx.fillRect(0, 0, W, H);
         ctx.fillStyle = '#2b2017';
-        ctx.fillRect(28, 175, this.canvas.width - 56, 48);
+        ctx.fillRect(T, 175, W - T * 2, 48);
 
+        ctx.fillStyle = 'rgba(13, 9, 7, 0.78)';
+        ctx.fillRect(T, T, W - T * 2, 18);
         ctx.fillStyle = '#ffd700'; ctx.font = 'bold 11px Courier New'; ctx.textAlign = 'center';
         const buffInfo = combat.psaKrevBuffTurns > 0 ? ` | 🔥 ПСЯ КРЕВ (${combat.psaKrevBuffTurns} х.)` : '';
-        ctx.fillText((combat.paused ? '=== ТАКТИЧЕСКАЯ ПАУЗА ===' : '=== АВТО-БОЙ (Кликни на Героя или Врага) ===') + buffInfo, this.canvas.width / 2, 19);
+        ctx.fillText((combat.paused ? '=== ТАКТИЧЕСКАЯ ПАУЗА ===' : '=== АВТО-БОЙ (ПРОБЕЛ — Пауза) ===') + buffInfo, W / 2, 22);
 
         const activeHeroes = state.party.filter(h => h.inSquad && h.status === 'ready');
         const hCount = activeHeroes.length;
@@ -468,15 +487,28 @@ export class CanvasRendererView {
             const bob = h.hp > 0 ? Math.sin(state.frame * 0.12 + idx) * 2 : 0;
             h.x = baseX; h.y = baseY;
 
-            if (combat.selectedHeroId === h.id) {
-                ctx.strokeStyle = '#66ff66'; ctx.lineWidth = 1.5;
-                ctx.strokeRect(baseX - 24, baseY - 22, 48, 46);
-            }
+            const isSel = combat.selectedHeroId === h.id;
+            const isHov = combat.hoveredHeroId === h.id;
+            const hlColor = isSel ? '#ffd700' : (isHov ? '#66ff66' : null);
 
-            this.drawSprite(h.sprite, baseX, baseY + bob, 3, h.color, h.hp <= 0, h.flash > 0);
+            this.drawSprite(h.sprite, baseX, baseY + bob, 3, h.color, h.hp <= 0, h.flash > 0, false, hlColor);
             if (h.flash > 0) h.flash--;
 
-            this.drawUnitBar(baseX, baseY - 26, h.hp, h.maxHp, h.tempHp || 0, '#55cc55', h.name);
+            this.drawUnitBar(baseX, baseY - 32, h.hp, h.maxHp, h.tempHp || 0, isSel ? '#ffd700' : '#55cc55', h.name);
+
+            if (isSel && combat.paused) {
+                ctx.save();
+                ctx.fillStyle = 'rgba(20, 14, 9, 0.92)';
+                ctx.fillRect(baseX - 38, baseY - 56, 76, 13);
+                ctx.strokeStyle = '#ffd700';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(baseX - 38, baseY - 56, 76, 13);
+                ctx.fillStyle = '#ffd700';
+                ctx.font = 'bold 8px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText('⚙ РАСПОРЯДОК', baseX, baseY - 47);
+                ctx.restore();
+            }
         });
 
         combat.enemies.forEach((e, idx) => {
@@ -486,17 +518,19 @@ export class CanvasRendererView {
             const bob = e.hp > 0 ? Math.sin(state.frame * 0.12 + idx + 2) * 2 : 0;
             e.x = baseX; e.y = baseY;
 
-            if (combat.focusEnemyIndex === idx && e.hp > 0) {
-                ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 1.5;
-                ctx.strokeRect(baseX - 24, baseY - 22, 48, 46);
-            }
+            const isFocused = combat.focusEnemyIndex === idx && e.hp > 0;
+            const isHovEn = combat.hoveredEnemyIndex === idx && e.hp > 0;
+            const enHlColor = isFocused ? '#ffd700' : (isHovEn ? '#ff6666' : null);
 
-            this.drawSprite(e.sprite, baseX, baseY + bob, 3, e.color, e.hp <= 0, e.flash > 0);
+            this.drawSprite(e.sprite, baseX, baseY + bob, 3, e.color, e.hp <= 0, e.flash > 0, true, enHlColor);
             if (e.flash > 0) e.flash--;
 
             const title = e.isSuperReadyNextTurn ? '!! СУПЕР !!' : e.name;
-            this.drawUnitBar(baseX, baseY - 26, e.hp, e.maxHp, 0, '#dd4444', title);
+            this.drawUnitBar(baseX, baseY - 32, e.hp, e.maxHp, 0, isFocused ? '#ffd700' : '#dd4444', title);
         });
+
+        WoodenFrameDrawer.drawCombatPauseCornerIcon(ctx, W, combat.paused, state.frame);
+        WoodenFrameDrawer.drawWoodenFrame(ctx, W, H);
     }
 
     private drawUnitBar(x: number, y: number, hp: number, maxHp: number, tempHp: number, color: string, label: string): void {
@@ -517,83 +551,11 @@ export class CanvasRendererView {
     }
 
     public static drawPaperDollFigure(h: HeroModel): void {
-        const cv = document.getElementById('doll-canvas') as HTMLCanvasElement | null;
-        if (!cv) return;
-        const c = cv.getContext('2d')!;
-        c.clearRect(0, 0, cv.width, cv.height);
-
-        const cx = Math.floor(cv.width / 2);
-        const cy = Math.floor(cv.height / 2);
-
-        c.strokeStyle = 'rgba(198, 156, 109, 0.28)';
-        c.lineWidth = 1.2;
-        c.beginPath(); c.arc(cx, cy, 44, 0, Math.PI * 2); c.stroke();
-        c.beginPath(); c.moveTo(cx, 6); c.lineTo(cx, cv.height - 6); c.moveTo(8, cy); c.lineTo(cv.width - 8, cy); c.stroke();
-
-        c.fillStyle = 'rgba(122, 82, 48, 0.25)';
-        c.fillRect(cx - 11, 12, 22, 18);
-        c.fillRect(cx - 18, 32, 36, 36);
-        c.fillRect(cx - 27, 34, 8, 30);
-        c.fillRect(cx + 19, 34, 8, 30);
-        c.fillRect(cx - 15, 70, 12, 28);
-        c.fillRect(cx + 3, 70, 12, 28);
-
-        const grid = SPRITES[h.sprite] || SPRITES.szlachta;
-        const scale = 6;
-        const sx = Math.floor(cx - (12 * scale) / 2);
-        const sy = Math.floor(cy - (12 * scale) / 2 + 2);
-        for (let r = 0; r < 12; r++) {
-            for (let col = 0; col < 12; col++) {
-                const ch = grid[r][col];
-                if (ch === ' ') continue;
-                if (ch === '#') c.fillStyle = h.color;
-                else if (ch === '.') c.fillStyle = '#ccc';
-                else if (ch === 'G') c.fillStyle = '#ffd700';
-                else if (ch === 'R') c.fillStyle = '#cc3333';
-                c.fillRect(sx + col * scale, sy + r * scale, scale, scale);
-            }
-        }
+        CanvasRendererView.initUnitCutoutSprites();
+        PortraitCanvasDrawer.drawPaperDollFigure(h, CanvasRendererView.unitImages);
     }
 
     public static drawNpcAvatar(sec: string): void {
-        const cv = document.getElementById('npc-avatar') as HTMLCanvasElement | null;
-        if (!cv) return;
-        const c = cv.getContext('2d')!;
-        c.clearRect(0, 0, 72, 72);
-        c.fillStyle = '#140d08';
-        c.fillRect(0, 0, 72, 72);
-
-        const spriteMap: Record<string, { url: string; sx: number; sy: number; sw: number; sh: number }> = {
-            host:    { url: 'sprites/npc_host.png',    sx: 18,  sy: 4,   sw: 126, sh: 126 },
-            verbirz: { url: 'sprites/npc_verbirz.png', sx: 22,  sy: 0,   sw: 128, sh: 128 },
-            clinic:  { url: 'sprites/npc_clinic.png',  sx: 175, sy: 132, sw: 135, sh: 135 },
-            mercs:   { url: 'sprites/npc_mercs.png',   sx: 105, sy: 5,   sw: 145, sh: 145 },
-            quests:  { url: 'sprites/npc_quests.png',  sx: 20,  sy: 15,  sw: 200, sh: 200 }
-        };
-
-        const cfg = spriteMap[sec];
-        if (!cfg) return;
-
-        let img = CanvasRendererView.sharedSprites[sec];
-        if (!img) {
-            img = new Image();
-            img.src = cfg.url;
-            CanvasRendererView.sharedSprites[sec] = img;
-        }
-
-        const renderPortrait = () => {
-            const targetCv = document.getElementById('npc-avatar') as HTMLCanvasElement | null;
-            if (!targetCv) return;
-            const tc = targetCv.getContext('2d')!;
-            tc.fillStyle = '#18100a';
-            tc.fillRect(0, 0, 72, 72);
-            tc.drawImage(img, cfg.sx, cfg.sy, cfg.sw, cfg.sh, 2, 2, 68, 68);
-        };
-
-        if (img.complete && img.naturalWidth > 0) {
-            renderPortrait();
-        } else {
-            img.onload = renderPortrait;
-        }
+        PortraitCanvasDrawer.drawNpcAvatar(sec);
     }
 }

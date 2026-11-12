@@ -17,7 +17,17 @@ export class EquipmentItem {
         this.atk = atk;
         this.armor = armor;
         this.block = block;
-        this.desc = desc || `Слот: ${this.getSlotTitle()}. Бонусы: +${atk} Ур, +${armor} Бр, +${block}% Блок.`;
+        this.desc = desc || this.buildDefaultDescription();
+    }
+
+    private buildDefaultDescription(): string {
+        if (this.slot === 'weapon') {
+            return `Боевое оружие для ближнего или дальнего боя. Усиливает атаку героя в схватках с противниками.`;
+        }
+        if (this.slot === 'armor') {
+            return `Добротный защитный доспех. Снижает получаемый урон от ударов врага и повышает выживаемость в строю.`;
+        }
+        return `Памятный талисман наемника. Приносит удачу в походе и укрепляет боевые качества владельца.`;
     }
 
     public getSlotTitle(): string {
@@ -26,10 +36,45 @@ export class EquipmentItem {
         return '💍 Талисман';
     }
 
+    public getSlotCleanName(): string {
+        if (this.slot === 'weapon') return 'Оружие';
+        if (this.slot === 'armor') return 'Доспех';
+        return 'Талисман';
+    }
+
     public getIcon(): string {
         if (this.slot === 'weapon') return '🗡️';
         if (this.slot === 'armor') return '🛡️';
         return '💍';
+    }
+
+    public getTier(): number {
+        const score = this.atk + this.armor + Math.floor(this.block / 5);
+        return Math.max(1, Math.min(4, score));
+    }
+
+    public getRating(): number {
+        return 100 + this.atk * 140 + this.armor * 135 + this.block * 25;
+    }
+
+    /**
+     * Определяет CSS-класс редкости для цвета верхней шторки и рамки иконки:
+     * uncommon -> серый, rare -> синий, epic -> фиолетовый, legendary -> красно-золотой
+     */
+    public getRarityClass(): 'rarity-uncommon' | 'rarity-rare' | 'rarity-epic' | 'rarity-legendary' {
+        const score = this.atk * 2 + this.armor * 2 + Math.floor(this.block / 3);
+        if (score <= 4) return 'rarity-uncommon';
+        if (score <= 6) return 'rarity-rare';
+        if (score <= 8) return 'rarity-epic';
+        return 'rarity-legendary';
+    }
+
+    public getRarityLabel(): string {
+        const cls = this.getRarityClass();
+        if (cls === 'rarity-uncommon') return 'Необычный (Uncommon)';
+        if (cls === 'rarity-rare') return 'Редкий (Rare)';
+        if (cls === 'rarity-epic') return 'Эпический (Epic)';
+        return 'Легендарный (Legendary)';
     }
 
     public static fromLegacyString(raw: string | EquipmentItem | null, slot: EquipSlotType): EquipmentItem | null {

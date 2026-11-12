@@ -14,12 +14,11 @@
 
 <div id="game-container">
     <div id="stats-bar">
-        <div class="stat-box" id="st-gold">Гроши: 60</div>
-        <div class="stat-box" id="st-squad">Отряд: 3/5</div>
-        <div class="stat-box" id="st-reserve">Резерв: 0/15</div>
-        <div class="stat-box" id="st-cycle">Цикл: 1</div>
+        <div class="stat-box" id="st-gold">🪙 Гроши: 60</div>
+        <div class="stat-box stat-war-tracker" id="st-war-tracker" onclick="toggleWarTrackerPopup(event)" title="Показать активные заказы Вербовщика">⚔️ Активных заказов: 0 ▾</div>
         <button class="btn-top-squad" onclick="openSquadModal()">🛡️ ОТРЯД</button>
     </div>
+    <div id="war-tracker-popup" class="war-tracker-popup" style="display: none;"></div>
     
     <div id="viewport-container">
         <canvas id="view" width="520" height="290"></canvas>

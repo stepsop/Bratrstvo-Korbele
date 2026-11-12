@@ -1,25 +1,9 @@
 import { GameStateModel } from '../models/GameStateModel';
 import { HeroModel } from '../models/HeroModel';
-import { EquipSlotType } from '../models/EquipmentItem';
-import { CanvasRendererView } from './CanvasRendererView';
-
-const STAT_DESCRIPTIONS: Record<string, (h: HeroModel) => string> = {
-    hp: (h) => `❤️ <b>Здоровье (${h.hp}/${h.maxHp}):</b> запас жизни бойца. Если упадет до 0, герой выбывает до конца боя и получает травму.`,
-    armor: (h) => `🛡️ <b>Броня (${h.armor}):</b> снижает входящий урон от каждого обычного удара (на ${Math.floor(h.armor / 2)}) и супер-удара врага (на ${h.armor}).`,
-    block: (h) => `🔰 <b>Блок (${h.blockChance}%):</b> шанс полностью отразить смертоносный СУПЕР-УДАР противника без потери здоровья.`,
-    atk: (h) => `⚔️ <b>Бонус урона (+${h.atkBonus}):</b> прибавляется к каждому броску кубика атаки и боевых навыков героя.`,
-    init: (h) => `⚡ <b>Инициатива (${h.initBase} + 1d10):</b> определяет очередность хода в начале каждого боя.`
-};
-
-function getInjuryDescription(inj: string): string {
-    if (inj.includes('Похмелье')) return `🩸 <b>${inj}:</b> голова гудит после корчмы (-2 Макс. HP). Снимается у Сестры Берты в Палатах врачебных.`;
-    if (inj.includes('ранение')) return `🩸 <b>${inj}:</b> старая колотая рана (-2 Макс. HP). Требует лечения в Палатах врачебных.`;
-    if (inj.includes('цепом')) return `🩸 <b>${inj}:</b> контузия после гуситского цепа. Снижает боеготовность до визита в Палатах врачебных.`;
-    return `🩸 <b>${inj}:</b> боевая травма. Обратитесь в Палаты врачебные для исцеления.`;
-}
+import { HeroDetailModalView } from './HeroDetailModalView';
 
 /**
- * View-компонент списка Отряда и детального окна Героя (Кукла РПГ, Способности, Дерево WoW, Состояние)
+ * View-компонент управления составом Отряда и Резерва (SRP: отвечает за доску Отряда/Резерва и делегирует осмотр бойца HeroDetailModalView)
  */
 export class SquadAndHeroModalView {
     private modalOverlay = document.getElementById('modal-overlay')!;
@@ -36,267 +20,273 @@ export class SquadAndHeroModalView {
     public renderSquadList(state: GameStateModel): void {
         this.showModal();
         const aliveHeroes = state.party.filter(h => h.status !== 'dead');
-        const useGrid = aliveHeroes.length > 4 ? 'hero-grid' : '';
+        const squadHeroes = aliveHeroes.filter(h => h.inSquad).slice(0, state.squadMax);
+        const reserveHeroes = aliveHeroes.filter(h => !h.inSquad);
 
-        const cardsHtml = aliveHeroes.map(h => {
-            const injCount = h.injuries.length;
-            const injText = injCount > 0 ? `<span class="hl-red">Травмы: ${h.injuries.join(', ')}</span>` : `<span class="hl-green">Травм нет</span>`;
-            const stBadge = h.status === 'ready' ? 'В строю' : (h.status === 'war' ? `Война (${h.timer}ц)` : `Палаты (${h.timer}ц)`);
+        let squadCardsHtml = '';
+        for (let i = 0; i < state.squadMax; i++) {
+            const h = squadHeroes[i];
+            if (h) {
+                const mastery = h.getMasteryTier();
+                const hasInjuries = h.injuries.length > 0;
+                const isMissingHpOrBusy = h.hp < h.maxHp || h.status !== 'ready';
 
-            return `
-                <div class="hero-card-row" style="margin-bottom:${useGrid ? '0' : '4px'};">
-                    <div style="flex:1;">
-                        <b class="hl-gold">${h.name}</b> | <b>${h.cls}</b> (Ур.${h.lvl}) | HP: ${h.hp}/${h.maxHp} | <i>${stBadge}</i><br>
-                        ${injText} | Очки талантов: <span class="hl-gold">${h.talentPts}</span>
-                    </div>
-                    <button style="max-width:125px; font-size:10px; padding:5px;" onclick="renderHeroDetailModal('${h.id}')">ТАЛАНТЫ / ВЕЩИ</button>
-                </div>
-            `;
-        }).join('');
+                const injHtml = hasInjuries
+                    ? `<div class="concept-card-wounds">🩸 ${h.injuries.join(', ')}</div>`
+                    : '';
+                const hpStateText = h.status === 'ready'
+                    ? `ХП: ${h.hp} / ${h.maxHp}`
+                    : (h.status === 'war' ? `На войне (${h.timer} ц.) • ХП: ${h.hp}/${h.maxHp}` : `В палатах (${h.timer} ц.) • ХП: ${h.hp}/${h.maxHp}`);
+                const hpHtml = isMissingHpOrBusy
+                    ? `<div class="concept-hp-line">${hpStateText}</div>`
+                    : '';
+                const woundsAndHpBlock = (injHtml || hpHtml)
+                    ? `<div class="concept-squad-hp">${injHtml}${hpHtml}</div>`
+                    : '';
 
-        this.modalContent.innerHTML = `
-            <div style="display:flex; justify-content:flex-end; margin-bottom:5px;">
-                <button style="max-width:95px; padding:4px 6px; font-size:10px;" onclick="closeSquadModal()">✕ ЗАКРЫТЬ</button>
-            </div>
-            <div class="${useGrid}">${cardsHtml}</div>
-        `;
-    }
+                const talentDot = h.talentPts > 0
+                    ? `<span class="concept-talent-dot" title="Доступно очков талантов: ${h.talentPts}">+${h.talentPts} тал.</span>`
+                    : '';
 
-    public renderHeroDetails(state: GameStateModel, h: HeroModel): void {
-        this.showModal();
-        const ui = state.heroUiState;
-
-        // 1. БЛОК СТАТОВ, УВЕЛИЧЕННОЙ КУКЛЫ И СПОСОБНОСТЕЙ ГЕРОЯ (СЛЕВА)
-        const statList = [
-            { key: 'hp', label: `❤️ HP: ${h.hp}/${h.maxHp}` },
-            { key: 'armor', label: `🛡️ Бр: ${h.armor}` },
-            { key: 'block', label: `🔰 Блок: ${h.blockChance}%` },
-            { key: 'atk', label: `⚔️ Урон: +${h.atkBonus}` },
-            { key: 'init', label: `⚡ Иниц: ${h.initBase}` }
-        ];
-        const statPillsHtml = statList.map(st => {
-            const isAct = ui.leftInspect.type === 'stat' && ui.leftInspect.key === st.key;
-            return `<div class="stat-pill ${isAct ? 'active' : ''}" onclick="selectHeroLeftInspect('${h.id}', 'stat', '${st.key}')"><b>${st.label}</b></div>`;
-        }).join('');
-
-        const wItem = h.equipObj.weapon;
-        const aItem = h.equipObj.armor;
-        const tItem = h.equipObj.trinket;
-        const isSlotSel = (slot: EquipSlotType) => ui.leftInspect.type === 'equipped' && ui.leftInspect.key === slot;
-
-        const skills = h.getSkillDetails();
-        const skillCellsHtml = skills.map(sk => {
-            const isSkSel = ui.leftInspect.type === 'skill' && ui.leftInspect.key === sk.key;
-            return `
-                <div class="skill-cell ${isSkSel ? 'selected' : ''}" onclick="selectHeroLeftInspect('${h.id}', 'skill', '${sk.key}')">
-                    <b style="color:#ffd700;">${sk.icon} ${sk.short}</b>
-                    <span style="font-size:9px; color:#9c8265;">${sk.cd}</span>
-                </div>
-            `;
-        }).join('');
-
-        let leftInspectorHtml = '';
-        if (ui.leftInspect.type === 'stat') {
-            const fn = STAT_DESCRIPTIONS[ui.leftInspect.key] || STAT_DESCRIPTIONS.armor;
-            leftInspectorHtml = `<div>${fn(h)}</div>`;
-        } else if (ui.leftInspect.type === 'skill') {
-            const sk = skills.find(s => s.key === ui.leftInspect.key) || skills[0];
-            leftInspectorHtml = `
-                <div>
-                    <b class="hl-gold">${sk.icon} ${sk.title}</b> <span style="color:#9c8265;">[${sk.cd}]</span><br>
-                    <span>${sk.desc}</span>
-                </div>
-            `;
-        } else if (ui.leftInspect.type === 'equipped') {
-            const slot = ui.leftInspect.key as EquipSlotType;
-            const item = h.equipObj[slot];
-            const slotTitle = slot === 'weapon' ? '🗡️ Оружие' : (slot === 'armor' ? '🛡️ Доспех' : '💍 Талисман');
-
-            const matchingItems = state.spareEquip
-                .map((eq, idx) => ({ eq, idx }))
-                .filter(x => x.eq.slot === slot);
-
-            const curItemHtml = item
-                ? `<div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-                       <div><b class="hl-gold">${item.name}</b> <span style="color:#9c8265;">(${slotTitle})</span> — <b>+${item.atk || 0} Ур, +${item.armor || 0} Бр, +${item.block || 0}% Блок</b></div>
-                       <button style="max-width:70px; padding:2px 5px; font-size:9px;" onclick="unequipHeroSlot('${h.id}', '${slot}')">Снять</button>
-                   </div>`
-                : `<div><b>${slotTitle}:</b> <span style="color:#888;">Слот пуст</span></div>`;
-
-            const availBtns = matchingItems.map(({ eq, idx }) => {
-                return `<button class="btn-sec" style="padding:3px 6px; font-size:9px; border-color:#ffd700;" onclick="equipItemOnHero('${h.id}', ${idx})">Надеть: ${eq.name} (+${eq.atk || 0}Ур/+${eq.armor || 0}Бр/+${eq.block || 0}%Бл)</button>`;
-            }).join('');
-
-            const availRow = availBtns
-                ? `<div class="btn-row" style="margin-top:2px;">${availBtns}</div>`
-                : `<div style="color:#756554; font-size:9px;">В арсенале нет других предметов для слота «${slotTitle}».</div>`;
-
-            leftInspectorHtml = `${curItemHtml}${availRow}`;
-        }
-
-        // 2. ВЕТКА ТАЛАНТОВ В СТИЛЕ СТАРОГО WOW (СПРАВА)
-        let wowTreeHtml = '';
-        for (let tier = 1; tier <= 3; tier++) {
-            const tierNodes = h.talents.filter(t => t.tier === tier);
-            const tierOpen = h.isTalentTierUnlocked(tier);
-
-            const nodesHtml = tierNodes.map(t => {
-                const stateCls = t.unlocked ? 'unlocked' : (tierOpen ? 'available' : 'locked');
-                const selCls = (ui.selectedTalentId === t.id) ? 'selected' : '';
-                const rankTxt = t.unlocked ? '1/1' : '0/1';
-                return `
-                    <div class="wow-node ${stateCls} ${selCls}" onclick="selectHeroTalentNode('${h.id}', '${t.id}')">
-                        <div class="wow-node-icon">${t.icon}</div>
-                        <div style="line-height:1.15; padding-right:16px;">
-                            <b style="color:${t.unlocked ? '#ffd700' : '#f0e6d2'};">${t.short}</b>
+                squadCardsHtml += `
+                    <div class="concept-squad-card mastery-${mastery.key}"
+                         draggable="true"
+                         data-hero-id="${h.id}"
+                         data-drop-zone="squad"
+                         title="Перетащите в Резерв или на другого бойца • Ранг: ${mastery.label}">
+                        <div class="concept-squad-card-top">
+                            <span class="concept-mastery-tag">${mastery.label}</span>
+                            ${talentDot}
                         </div>
-                        <span class="wow-node-rank">${rankTxt}</span>
+                        <div class="concept-squad-name">${h.name}</div>
+                        <div class="concept-squad-class">${h.cls} <span style="font-size:11px; opacity:0.85;">(Ур.${h.lvl})</span></div>
+                        ${woundsAndHpBlock}
+                        <button class="concept-inspect-btn" onclick="event.stopPropagation(); renderHeroDetailModal('${h.id}')">Осмотреть</button>
                     </div>
                 `;
-            }).join('');
-
-            wowTreeHtml += `
-                <div class="wow-tier-row">
-                    <div class="wow-tier-label">Тир ${tier}</div>
-                    ${nodesHtml}
-                </div>
-            `;
-            if (tier < 3) {
-                const nextOpen = h.isTalentTierUnlocked(tier + 1);
-                const arrowCol = nextOpen ? '#ffd700' : '#5c4028';
-                wowTreeHtml += `
-                    <div class="wow-connector-row" style="color:${arrowCol};">
-                        <div></div><div>│<br>▼</div><div>│<br>▼</div>
-                    </div>
+            } else {
+                squadCardsHtml += `
+                    <div class="concept-squad-card empty-slot" data-drop-zone="squad"></div>
                 `;
             }
         }
 
-        const selTalent = h.talents.find(t => t.id === ui.selectedTalentId) || h.talents[0];
-        const canLearnSel = selTalent && !selTalent.unlocked && h.talentPts > 0 && h.isTalentTierUnlocked(selTalent.tier);
-        let lockReason = '';
-        if (selTalent && !selTalent.unlocked) {
-            if (!h.isTalentTierUnlocked(selTalent.tier)) lockReason = `<span class="hl-red">(Нужен талант Тира ${selTalent.tier - 1})</span>`;
-            else if (h.talentPts <= 0) lockReason = `<span style="color:#888;">(Нет очков талантов)</span>`;
-        }
+        const totalReserveSlots = 12;
+        let reserveCellsHtml = '';
+        for (let i = 0; i < totalReserveSlots; i++) {
+            const h = reserveHeroes[i];
+            if (h) {
+                const mastery = h.getMasteryTier();
+                const hasInjuries = h.injuries.length > 0;
+                const isMissingHpOrBusy = h.hp < h.maxHp || h.status !== 'ready';
 
-        const talentInspectorHtml = selTalent ? `
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; width:100%;">
-                <div style="flex:1;">
-                    <b class="hl-gold">${selTalent.icon} ${selTalent.name}</b> ${lockReason}<br>
-                    <span>${selTalent.desc}</span>
-                </div>
-                ${selTalent.unlocked
-                    ? `<span class="hl-green" style="font-size:10px; white-space:nowrap;">✓ ИЗУЧЕНО</span>`
-                    : `<button style="max-width:90px; padding:4px; font-size:10px;" onclick="unlockTalent('${h.id}', '${selTalent.id}')" ${!canLearnSel ? 'disabled' : ''}>Изучить</button>`
+                const parts: string[] = [];
+                if (hasInjuries) parts.push(`🩸 ${h.injuries.join(', ')}`);
+                if (h.status !== 'ready') {
+                    parts.push(h.status === 'war' ? `Война (${h.timer}ц)` : `Палаты (${h.timer}ц)`);
                 }
-            </div>
-        ` : '';
+                if (isMissingHpOrBusy) {
+                    parts.push(`ХП ${h.hp}/${h.maxHp}`);
+                }
+                const line2Html = parts.length > 0
+                    ? `<div class="concept-reserve-line2">\\ ${parts.join(' • ')}</div>`
+                    : '';
 
-        // 3. НИЖНЯЯ ПАНЕЛЬ СОСТОЯНИЯ: ТРАВМЫ, ДЕБАФФЫ И ПАССИВКИ
-        const passiveInfo = h.getPassiveInfo();
-        let statusBadgesHtml = `
-            <div class="status-badge passive" onclick="selectHeroStatusBadge('${h.id}', 'passive')">
-                ${passiveInfo.title}
-            </div>
-        `;
-
-        if (h.injuries.length === 0) {
-            statusBadgesHtml += `
-                <div class="status-badge healthy" onclick="selectHeroStatusBadge('${h.id}', 'healthy')">
-                    ✓ Здоров (Травм и дебаффов нет)
-                </div>
-            `;
-        } else {
-            h.injuries.forEach((inj, idx) => {
-                statusBadgesHtml += `
-                    <div class="status-badge debuff" onclick="selectHeroStatusBadge('${h.id}', 'inj_${idx}')">
-                        🩸 Травма: ${inj}
+                reserveCellsHtml += `
+                    <div class="concept-reserve-card mastery-${mastery.key}"
+                         draggable="true"
+                         data-hero-id="${h.id}"
+                         data-drop-zone="reserve"
+                         onclick="renderHeroDetailModal('${h.id}')"
+                         title="Перетащите в Отряд или нажмите для осмотра • Ранг: ${mastery.label}">
+                        <div class="concept-reserve-text">
+                            <div class="concept-reserve-line1">${h.name} \\ ${h.cls} (Ур.${h.lvl})</div>
+                            ${line2Html}
+                        </div>
                     </div>
                 `;
-            });
-        }
-
-        let statusDescHtml = '';
-        if (ui.selectedStatusKey === 'passive') {
-            statusDescHtml = `<span class="hl-gold">${passiveInfo.title}:</span> ${passiveInfo.desc}`;
-        } else if (ui.selectedStatusKey === 'healthy') {
-            statusDescHtml = `<span class="hl-green">Боец полностью здоров:</span> штрафов к характеристикам нет, готов к походу.`;
-        } else if (ui.selectedStatusKey && ui.selectedStatusKey.startsWith('inj_')) {
-            const iIdx = parseInt(ui.selectedStatusKey.split('_')[1], 10);
-            const inj = h.injuries[iIdx] || h.injuries[0];
-            statusDescHtml = getInjuryDescription(inj || 'Боевая травма');
+            } else {
+                reserveCellsHtml += `
+                    <div class="concept-reserve-card empty-reserve-slot" data-drop-zone="reserve"></div>
+                `;
+            }
         }
 
         this.modalContent.innerHTML = `
-            <div class="modal-header" style="margin-bottom:4px;">
-                <span>⚔️ ${h.name} — ${h.cls} (Ур.${h.lvl})</span>
-                <button style="max-width:95px; padding:3px 6px; font-size:10px;" onclick="renderSquadListModal()">← Назад</button>
-            </div>
-
-            <div class="grid-2col">
-                <div class="panel-sec">
-                    <h4>
-                        <span>🎽 ЭКИПИРОВКА, СТАТЫ И НАВЫКИ</span>
-                        <span style="font-size:9px; color:#b58c5e; font-weight:normal;">(Выбери ячейку или навык)</span>
-                    </h4>
-                    <div class="stat-pills-row">${statPillsHtml}</div>
-
-                    <div class="doll-wrap">
-                        <div class="rpg-slot ${isSlotSel('weapon') ? 'selected' : ''}" onclick="selectHeroLeftInspect('${h.id}', 'equipped', 'weapon')">
-                            <span class="rpg-slot-label">🗡️ Оружие</span>
-                            <span class="rpg-slot-item">${wItem ? wItem.name : 'Пусто'}</span>
-                        </div>
-
-                        <div class="doll-figure-box">
-                            <canvas id="doll-canvas" width="108" height="112"></canvas>
-                        </div>
-
-                        <div style="display:flex; flex-direction:column; gap:6px;">
-                            <div class="rpg-slot ${isSlotSel('armor') ? 'selected' : ''}" onclick="selectHeroLeftInspect('${h.id}', 'equipped', 'armor')">
-                                <span class="rpg-slot-label">🛡️ Доспех</span>
-                                <span class="rpg-slot-item">${aItem ? aItem.name : 'Пусто'}</span>
-                            </div>
-                            <div class="rpg-slot ${isSlotSel('trinket') ? 'selected' : ''}" onclick="selectHeroLeftInspect('${h.id}', 'equipped', 'trinket')">
-                                <span class="rpg-slot-label">💍 Талисман</span>
-                                <span class="rpg-slot-item">${tItem ? tItem.name : 'Пусто'}</span>
-                            </div>
-                        </div>
+            <div class="concept-squad-board">
+                <div class="concept-squad-section" data-drop-zone="squad">
+                    <div class="concept-squad-header">
+                        <span class="concept-squad-hint">Перетаскивайте бойцов между Отрядом и Резервом (цвет = тир вещей + талантов)</span>
+                        <span class="concept-squad-title">Отряд (${squadHeroes.length} / ${state.squadMax})</span>
+                        <button class="concept-close-btn" onclick="closeSquadModal()">✕ ЗАКРЫТЬ</button>
                     </div>
-
-                    <div style="font-size:10px; color:#ffd700; margin-bottom:3px; font-weight:bold;">⚡ СПОСОБНОСТИ ГЕРОЯ (Нажми для описания):</div>
-                    <div class="skill-grid">${skillCellsHtml}</div>
-
-                    <div class="inspector-box">${leftInspectorHtml}</div>
-                </div>
-
-                <div class="panel-sec" style="display:flex; flex-direction:column; justify-content:space-between;">
-                    <div>
-                        <h4>
-                            <span>🌟 ДЕРЕВО ТАЛАНТОВ</span>
-                            <span>Очков: <b class="hl-gold">${h.talentPts}</b></span>
-                        </h4>
-                        <div style="display:grid; grid-template-columns:38px 1fr 1fr; gap:8px; font-size:9px; color:#b58c5e; text-align:center; margin-bottom:3px;">
-                            <div></div><div>⚔️ Ветка Натиска</div><div>🛡️ Ветка Защиты</div>
-                        </div>
-                        <div class="wow-tree">${wowTreeHtml}</div>
+                    <div class="concept-squad-grid" data-drop-zone="squad">
+                        ${squadCardsHtml}
                     </div>
-                    <div class="inspector-box" style="min-height:48px;">${talentInspectorHtml}</div>
                 </div>
-            </div>
 
-            <div class="status-bottom-panel">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <b style="color:#ffd700;">🩺 СОСТОЯНИЕ БОЙЦА (Травмы, Дебаффы и Пассивка):</b>
-                    <span style="color:#9c8265; font-size:9px;">Нажмите на иконку эффекта для описания</span>
-                </div>
-                <div class="status-badges-row">${statusBadgesHtml}</div>
-                <div style="margin-top:4px; padding-top:3px; border-top:1px dashed #4a3520; color:#dec8ad;">
-                    ${statusDescHtml}
+                <div class="concept-reserve-section" data-drop-zone="reserve">
+                    <div class="concept-reserve-header">
+                        <span>Резерв гильдии (${reserveHeroes.length} / ${state.reserveMax}) — перетащите бойца в верхнее окно Отряда (или нажмите на карточку для осмотра)</span>
+                    </div>
+                    <div class="concept-reserve-grid" data-drop-zone="reserve">
+                        ${reserveCellsHtml}
+                    </div>
                 </div>
             </div>
         `;
 
-        CanvasRendererView.drawPaperDollFigure(h);
+        this.bindSquadDragAndDrop();
+    }
+
+    private bindSquadDragAndDrop(): void {
+        const w = window as unknown as Record<string, (a?: unknown, b?: unknown, c?: unknown) => void>;
+        const board = this.modalContent.querySelector('.concept-squad-board') as HTMLElement | null;
+        if (!board) return;
+
+        let draggedHeroId: string | null = null;
+
+        const draggableCards = board.querySelectorAll<HTMLElement>('[data-hero-id]');
+        draggableCards.forEach(card => {
+            card.addEventListener('dragstart', (e: DragEvent) => {
+                const id = card.getAttribute('data-hero-id');
+                if (!id) return;
+                draggedHeroId = id;
+                card.classList.add('dragging-card');
+                if (e.dataTransfer) {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', id);
+                }
+            });
+
+            card.addEventListener('dragend', () => {
+                card.classList.remove('dragging-card');
+                board.querySelectorAll('.drop-target-hover').forEach(el => el.classList.remove('drop-target-hover'));
+            });
+        });
+
+        const dropZones = board.querySelectorAll<HTMLElement>('[data-drop-zone]');
+        dropZones.forEach(zone => {
+            zone.addEventListener('dragover', (e: DragEvent) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                board.querySelectorAll('.drop-target-hover').forEach(el => el.classList.remove('drop-target-hover'));
+                zone.classList.add('drop-target-hover');
+            });
+
+            zone.addEventListener('dragleave', (e: DragEvent) => {
+                e.stopPropagation();
+                zone.classList.remove('drop-target-hover');
+            });
+
+            zone.addEventListener('drop', (e: DragEvent) => {
+                e.preventDefault();
+                e.stopPropagation();
+                zone.classList.remove('drop-target-hover');
+                const sourceId = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || draggedHeroId;
+                if (!sourceId) return;
+
+                const targetCard = (e.target as HTMLElement).closest('[data-hero-id]') as HTMLElement | null;
+                const targetHeroId = targetCard ? (targetCard.getAttribute('data-hero-id') || undefined) : undefined;
+                const targetZoneAttr = (targetCard?.getAttribute('data-drop-zone') || zone.getAttribute('data-drop-zone')) as 'squad' | 'reserve';
+
+                if (typeof w.moveOrSwapSquadHero === 'function' && targetZoneAttr) {
+                    w.moveOrSwapSquadHero(sourceId, targetZoneAttr, targetHeroId);
+                }
+                draggedHeroId = null;
+            });
+        });
+
+        let touchHeroId: string | null = null;
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let isTouchDragging = false;
+        let ghostEl: HTMLElement | null = null;
+
+        const clearTouchGhost = () => {
+            if (ghostEl && ghostEl.parentNode) {
+                ghostEl.parentNode.removeChild(ghostEl);
+            }
+            ghostEl = null;
+            board.querySelectorAll('.dragging-card, .drop-target-hover').forEach(el => {
+                el.classList.remove('dragging-card', 'drop-target-hover');
+            });
+            touchHeroId = null;
+            isTouchDragging = false;
+        };
+
+        draggableCards.forEach(card => {
+            card.addEventListener('touchstart', (e: TouchEvent) => {
+                if ((e.target as HTMLElement).closest('button')) return;
+                if (e.touches.length !== 1) return;
+                const id = card.getAttribute('data-hero-id');
+                if (!id) return;
+                touchHeroId = id;
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+                isTouchDragging = false;
+            }, { passive: true });
+
+            card.addEventListener('touchmove', (e: TouchEvent) => {
+                if (!touchHeroId || e.touches.length !== 1) return;
+                const tx = e.touches[0].clientX;
+                const ty = e.touches[0].clientY;
+                const dist = Math.hypot(tx - touchStartX, ty - touchStartY);
+
+                if (!isTouchDragging && dist > 10) {
+                    isTouchDragging = true;
+                    card.classList.add('dragging-card');
+                    ghostEl = document.createElement('div');
+                    ghostEl.className = 'touch-drag-ghost';
+                    ghostEl.textContent = card.querySelector('.concept-squad-name, .concept-reserve-line1')?.textContent || 'Боец';
+                    document.body.appendChild(ghostEl);
+                }
+
+                if (isTouchDragging) {
+                    e.preventDefault();
+                    if (ghostEl) {
+                        ghostEl.style.left = `${tx}px`;
+                        ghostEl.style.top = `${ty}px`;
+                    }
+                    board.querySelectorAll('.drop-target-hover').forEach(el => el.classList.remove('drop-target-hover'));
+                    const under = document.elementFromPoint(tx, ty) as HTMLElement | null;
+                    const dropTarget = under?.closest('[data-drop-zone]') as HTMLElement | null;
+                    if (dropTarget) dropTarget.classList.add('drop-target-hover');
+                }
+            }, { passive: false });
+
+            card.addEventListener('touchend', (e: TouchEvent) => {
+                if (!touchHeroId) return;
+                if (isTouchDragging && e.changedTouches.length > 0) {
+                    e.preventDefault();
+                    const tx = e.changedTouches[0].clientX;
+                    const ty = e.changedTouches[0].clientY;
+                    if (ghostEl) ghostEl.style.display = 'none';
+                    const under = document.elementFromPoint(tx, ty) as HTMLElement | null;
+                    const targetCard = under?.closest('[data-hero-id]') as HTMLElement | null;
+                    const dropZoneEl = under?.closest('[data-drop-zone]') as HTMLElement | null;
+                    const targetHeroId = targetCard ? (targetCard.getAttribute('data-hero-id') || undefined) : undefined;
+                    const targetZoneAttr = (targetCard?.getAttribute('data-drop-zone') || dropZoneEl?.getAttribute('data-drop-zone')) as 'squad' | 'reserve' | undefined;
+
+                    const sourceId = touchHeroId;
+                    clearTouchGhost();
+                    if (typeof w.moveOrSwapSquadHero === 'function' && targetZoneAttr) {
+                        w.moveOrSwapSquadHero(sourceId, targetZoneAttr, targetHeroId);
+                    }
+                    return;
+                }
+                clearTouchGhost();
+            });
+
+            card.addEventListener('touchcancel', () => {
+                clearTouchGhost();
+            });
+        });
+    }
+
+    public renderHeroDetails(state: GameStateModel, h: HeroModel): void {
+        this.showModal();
+        HeroDetailModalView.renderHeroDetails(this.modalContent, state, h);
     }
 }
