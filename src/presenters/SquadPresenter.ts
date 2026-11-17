@@ -197,7 +197,22 @@ export class SquadPresenter {
         this.state.heroUiState.selectedTalentId = unlockedNode.id;
         this.state.heroUiState.selectedStatusKey = `talent_${unlockedNode.id}`;
         this.state.heroUiState.activeInspectorSource = 'status';
-        this.hudView.appendLog(`Изучен талант <span class="hl-green">«${unlockedNode.name}»</span> для бойца ${h.name}!`);
+        this.hudView.appendLog(`Изучен талант <span class="hl-green">«${unlockedNode.name}»</span> — ${h.name} повысил уровень до <b>Ур.${h.lvl}</b>!`);
+        this.topBarView.renderStats(this.state);
+        this.renderHeroDetailModal(heroId);
+    }
+
+    public resetHeroTalents(heroId: string): void {
+        const h = this.state.party.find(p => p.id === heroId);
+        if (!h) return;
+
+        const refunded = h.resetTalents();
+        if (refunded <= 0) return;
+
+        this.state.heroUiState.selectedTalentId = h.talents[0]?.id || null;
+        this.state.heroUiState.selectedStatusKey = 'passive';
+        this.state.heroUiState.activeInspectorSource = 'status';
+        this.hudView.appendLog(`Таланты бойца <span class="hl-gold">${h.name}</span> сброшены (возвращено очков: <b>+${refunded}</b>).`);
         this.topBarView.renderStats(this.state);
         this.renderHeroDetailModal(heroId);
     }

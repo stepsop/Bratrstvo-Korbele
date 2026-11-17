@@ -14,14 +14,17 @@
 
 <div id="game-container">
     <div id="stats-bar">
-        <div class="stat-box" id="st-gold">🪙 Гроши: 60</div>
-        <div class="stat-box stat-war-tracker" id="st-war-tracker" onclick="toggleWarTrackerPopup(event)" title="Показать активные заказы Вербовщика">⚔️ Активных заказов: 0 ▾</div>
-        <button class="btn-top-squad" onclick="openSquadModal()">🛡️ ОТРЯД</button>
+        <div class="stat-box" id="st-gold"><img class="ui-icon ui-icon-sm" src="icons/coins_stack.png" alt="" draggable="false" /> Гроши: 60</div>
+        <div class="stat-box stat-war-tracker" id="st-war-tracker" onclick="toggleWarTrackerPopup(event)" title="Показать активные заказы Вербовщика"><img class="ui-icon ui-icon-sm" src="icons/crossed_swords.png" alt="" draggable="false" /> Активных заказов: 0 ▾</div>
+        <div class="stat-box stat-war-tracker" id="st-clinic-tracker" onclick="toggleClinicTrackerPopup(event)" title="Показать бойцов на лечении в палатах"><img class="ui-icon ui-icon-sm" src="icons/heal_cross.png" alt="" draggable="false" /> На лечении: 0 ▾</div>
+        <button class="btn-top-squad" onclick="openSquadModal()"><img class="ui-icon ui-icon-sm" src="icons/shield_cross.png" alt="" draggable="false" /> ОТРЯД</button>
     </div>
     <div id="war-tracker-popup" class="war-tracker-popup" style="display: none;"></div>
+    <div id="clinic-tracker-popup" class="war-tracker-popup clinic-tracker-popup" style="display: none;"></div>
     
     <div id="viewport-container">
         <canvas id="view" width="520" height="290"></canvas>
+        <div id="map-action-overlay" class="map-action-overlay" style="display: none;"></div>
     </div>
 
     <div id="log-container"></div>

@@ -30,6 +30,9 @@ export class GameLoopPresenter {
                 if (modalOverlay && modalOverlay.style.display === 'flex') return;
                 e.preventDefault();
                 this.combatPresenter.togglePause();
+            } else if ((e.code === 'Space' || e.code === 'Enter') && this.state.scene === 'map' && this.state.mapState.encounterPending) {
+                e.preventDefault();
+                this.combatPresenter.confirmMapEncounter();
             }
         });
 
@@ -113,7 +116,7 @@ export class GameLoopPresenter {
                     if (Math.abs(mx - h.x) < 28 && Math.abs(my - h.y) < 32) {
                         this.combatPresenter.selectHeroInCombat(h.id);
                         if (this.state.combat.selectedHeroId === h.id) {
-                            this.hudView.appendLog(`Выбран боец <span class="hl-gold">${h.name}</span>. Настрой его распорядок атак и целей ниже!`);
+                            this.hudView.appendLog(`Выбран боец <span class="hl-gold">${h.name}</span>. Настрой его распорядок атак и целей ниже!`, 'ally');
                         }
                         return;
                     }
@@ -122,7 +125,7 @@ export class GameLoopPresenter {
                     if (en.hp > 0 && Math.abs(mx - en.x) < 28 && Math.abs(my - en.y) < 32) {
                         this.state.combat.focusEnemyIndex = idx;
                         this.state.addFloatingText("ФОКУС!", en.x, en.y - 25, '#ffd700');
-                        this.hudView.appendLog(`Отряд фокусирует удары на цели: <span class="hl-gold">${en.name}</span>!`);
+                        this.hudView.appendLog(`Отряд фокусирует удары на цели: <span class="hl-gold">${en.name}</span>!`, 'ally');
                         this.hudView.renderCombatControls(this.state);
                     }
                 });
@@ -169,12 +172,19 @@ export class GameLoopPresenter {
         w.equipItemOnHero = (id: string, idx: number) => this.squadPresenter.equipItemOnHero(id, idx);
         w.unequipHeroSlot = (id: string, slot: any) => this.squadPresenter.unequipHeroSlot(id, slot);
         w.unlockTalent = (id: string, tid: string) => this.squadPresenter.unlockTalent(id, tid);
+        w.resetHeroTalents = (id: string) => this.squadPresenter.resetHeroTalents(id);
 
         // Guild & NPC Dialogs
         w.enterGuild = (showSummary?: boolean) => this.guildPresenter.enterGuild(!!showSummary);
         w.inspectBattleLoot = (idx: number) => this.guildPresenter.inspectBattleLoot(idx);
         w.openClinicDialog = () => this.guildPresenter.openClinicDialog();
         w.openHostDialog = (speech?: string) => this.guildPresenter.openHostDialog(speech || null);
+        w.switchHostTab = (tab: 'hub' | 'upgrades' | 'consumables' | 'armor') => this.guildPresenter.switchHostTab(tab);
+        w.selectHostArmorItem = (id: string) => this.guildPresenter.selectHostArmorItem(id);
+        w.buyHostArmorItem = (id: string) => this.guildPresenter.buyHostArmorItem(id);
+        w.selectHostUpgrade = (id: string) => this.guildPresenter.selectHostUpgrade(id);
+        w.buyTavernUpgrade = (id: string) => this.guildPresenter.buyTavernUpgrade(id);
+        w.selectHostConsumable = (id: 'beer' | 'medkit' | 'pot') => this.guildPresenter.selectHostConsumable(id);
         w.buyShopItem = (type: string) => this.guildPresenter.buyShopItem(type);
         w.treatHeroInClinic = (idx: number, mode: 'hp' | 'injuries') => this.guildPresenter.treatHeroInClinic(idx, mode);
         w.hireMercenary = (idx: number) => this.guildPresenter.hireMercenary(idx);
@@ -186,9 +196,16 @@ export class GameLoopPresenter {
         w.toggleHeroMissionPick = (id: string) => this.guildPresenter.toggleHeroMissionPick(id);
         w.toggleWarTrackerPopup = (ev?: Event) => this.guildPresenter.toggleWarTrackerPopup(ev);
         w.closeWarTrackerPopup = (ev?: Event) => this.guildPresenter.closeWarTrackerPopup(ev);
+        w.toggleClinicTrackerPopup = (ev?: Event) => this.guildPresenter.toggleClinicTrackerPopup(ev);
+        w.closeClinicTrackerPopup = (ev?: Event) => this.guildPresenter.closeClinicTrackerPopup(ev);
+        w.openSmithDialog = (speech?: string) => this.guildPresenter.openSmithDialog(speech || null);
+        w.setSmithRecipeFilter = (filter: 'all' | 'weapon' | 'armor' | 'trinket') => this.guildPresenter.setSmithRecipeFilter(filter);
+        w.smeltSpareItem = (idx: number) => this.guildPresenter.smeltSpareItem(idx);
+        w.craftSmithRecipe = (recipeId: string) => this.guildPresenter.craftSmithRecipe(recipeId);
 
         // Map & Combat
         w.startQuest = (questId?: string) => this.combatPresenter.startQuest(questId);
+        w.confirmMapEncounter = () => this.combatPresenter.confirmMapEncounter();
         w.togglePause = () => this.combatPresenter.togglePause();
         w.usePsaKrev = () => this.combatPresenter.usePsaKrev();
         w.selectHeroInCombat = (id: string) => this.combatPresenter.selectHeroInCombat(id);

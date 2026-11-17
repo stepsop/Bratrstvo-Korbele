@@ -9,6 +9,23 @@ body {
 :root {
     --wood-frame-svg: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 36 36'><rect x='0' y='0' width='36' height='10' fill='%234a2f1b'/><rect x='0' y='26' width='36' height='10' fill='%234a2f1b'/><rect x='0' y='0' width='10' height='36' fill='%234a2f1b'/><rect x='26' y='0' width='10' height='36' fill='%234a2f1b'/><rect x='10' y='3' width='16' height='2' fill='%23382212'/><rect x='10' y='6' width='16' height='1' fill='%23382212'/><rect x='10' y='30' width='16' height='2' fill='%23382212'/><rect x='10' y='33' width='16' height='1' fill='%23382212'/><rect x='3' y='10' width='2' height='16' fill='%23382212'/><rect x='6' y='10' width='1' height='16' fill='%23382212'/><rect x='30' y='10' width='2' height='16' fill='%23382212'/><rect x='33' y='10' width='1' height='16' fill='%23382212'/><rect x='10' y='1' width='16' height='1' fill='%236e472b'/><rect x='10' y='27' width='16' height='1' fill='%236e472b'/><rect x='1' y='10' width='1' height='16' fill='%236e472b'/><rect x='27' y='10' width='1' height='16' fill='%236e472b'/><rect x='17' y='0' width='2' height='10' fill='%2324150a'/><rect x='17' y='26' width='2' height='10' fill='%2324150a'/><rect x='0' y='17' width='10' height='2' fill='%2324150a'/><rect x='26' y='17' width='10' height='2' fill='%2324150a'/><rect x='0.5' y='0.5' width='35' height='35' fill='none' stroke='%231f1209' stroke-width='1'/><rect x='9.5' y='9.5' width='17' height='17' fill='none' stroke='%237c5333' stroke-width='1'/><rect x='0.5' y='0.5' width='9' height='9' fill='%232d2926' stroke='%2359514a' stroke-width='1'/><rect x='26.5' y='0.5' width='9' height='9' fill='%232d2926' stroke='%2359514a' stroke-width='1'/><rect x='0.5' y='26.5' width='9' height='9' fill='%232d2926' stroke='%2359514a' stroke-width='1'/><rect x='26.5' y='26.5' width='9' height='9' fill='%232d2926' stroke='%2359514a' stroke-width='1'/><rect x='2' y='2' width='2' height='2' fill='%23d4a24c'/><rect x='6' y='2' width='2' height='2' fill='%23d4a24c'/><rect x='2' y='6' width='2' height='2' fill='%23d4a24c'/><rect x='32' y='2' width='2' height='2' fill='%23d4a24c'/><rect x='28' y='2' width='2' height='2' fill='%23d4a24c'/><rect x='32' y='6' width='2' height='2' fill='%23d4a24c'/><rect x='2' y='32' width='2' height='2' fill='%23d4a24c'/><rect x='6' y='32' width='2' height='2' fill='%23d4a24c'/><rect x='2' y='28' width='2' height='2' fill='%23d4a24c'/><rect x='32' y='32' width='2' height='2' fill='%23d4a24c'/><rect x='28' y='32' width='2' height='2' fill='%23d4a24c'/><rect x='32' y='28' width='2' height='2' fill='%23d4a24c'/></svg>");
 }
+.ui-icon {
+    display: inline-block;
+    vertical-align: middle;
+    object-fit: contain;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    border-radius: 3px;
+    flex-shrink: 0;
+    pointer-events: none;
+}
+.ui-icon-xs { width: 13px; height: 13px; }
+.ui-icon-sm { width: 16px; height: 16px; }
+.ui-icon-md { width: 24px; height: 24px; }
+.ui-icon-lg { width: 32px; height: 32px; }
+.ui-icon-xl { width: 46px; height: 46px; }
+.ui-icon-2xl { width: 54px; height: 54px; }
+.ui-icon-talent { width: 28px; height: 28px; }
 #game-container {
     max-width: 1360px; width: 100%; height: 100dvh;
     margin: 0 auto; display: flex; flex-direction: column;
@@ -67,7 +84,7 @@ body {
     margin-left: 2px;
 }
 
-/* Всплывающее маленькое окошко активных заказов Вербовщика */
+/* Всплывающее маленькое окошко активных заказов Вербовщика и Палат */
 .war-tracker-popup {
     position: absolute;
     top: 40px;
@@ -82,6 +99,9 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+.clinic-tracker-popup {
+    left: 290px;
 }
 .war-popup-header {
     display: flex;
@@ -104,6 +124,9 @@ body {
     padding: 0 !important;
     font-size: 11px !important;
     line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: #2b1810 !important;
     border: 1px solid #8c583a !important;
     color: #f0e6d2 !important;
@@ -204,6 +227,10 @@ body {
     border: none; background: #140f0a;
     display: flex; align-items: center; justify-content: center; overflow: hidden;
 }
+#game-container.combat-scene-active #viewport-container {
+    flex: 1 1 0%;
+    min-height: 300px;
+}
 canvas {
     width: 100%; height: 100%; display: block;
     object-fit: fill;
@@ -211,20 +238,96 @@ canvas {
     image-rendering: crisp-edges;
 }
 #log-container {
-    flex: 0 1 18%; min-height: 62px; padding: 6px 10px; overflow-y: auto;
-    font-size: 12px; line-height: 1.4;
+    flex: 0 0 138px;
+    height: 138px;
+    min-height: 108px;
+    max-height: 168px;
+    padding: 7px 10px;
+    overflow-y: auto;
+    font-size: 13px;
+    line-height: 1.42;
     background: #0c0806;
 }
-.log-entry { margin-bottom: 5px; }
-.log-old { color: #756554; }
+.log-entry {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 4px;
+    padding: 4px 8px;
+    border-radius: 2px;
+    border-left: 3px solid #6b533b;
+    background: rgba(28, 19, 13, 0.55);
+    color: #f3ead8;
+    transition: opacity 0.18s;
+}
+.log-entry:last-child {
+    margin-bottom: 0;
+}
+.log-entry.log-ally {
+    border-left-color: #4ade80;
+    background: rgba(24, 68, 36, 0.34);
+    color: #ebfaee;
+}
+.log-entry.log-enemy {
+    border-left-color: #f87171;
+    background: rgba(96, 22, 22, 0.36);
+    color: #fdeaea;
+}
+.log-entry.log-system {
+    border-left-color: #e5b84b;
+    background: rgba(68, 48, 18, 0.34);
+    color: #f9eed4;
+}
+.log-entry.log-latest {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+.log-entry.log-old {
+    opacity: 0.76;
+}
+.log-badge {
+    flex: 0 0 auto;
+    min-width: 82px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    padding: 1px 6px;
+    border-radius: 2px;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+}
+.log-badge-ally {
+    background: #143620;
+    color: #86efac;
+    border-color: #348a53;
+}
+.log-badge-enemy {
+    background: #3d1414;
+    color: #fca5a5;
+    border-color: #a33b3b;
+}
+.log-badge-system {
+    background: #2e200b;
+    color: #ffd700;
+    border-color: #9e7828;
+}
+.log-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
 .hl-gold { color: #ffd700; font-weight: bold; }
-.hl-red { color: #ff5555; font-weight: bold; }
-.hl-green { color: #66ff66; font-weight: bold; }
-.hl-blue { color: #66ccff; font-weight: bold; }
+.hl-red { color: #ff6b6b; font-weight: bold; }
+.hl-green { color: #74ff74; font-weight: bold; }
+.hl-blue { color: #70d0ff; font-weight: bold; }
 #controls {
-    padding: 8px 10px; min-height: 105px; max-height: 170px;
+    padding: 6px 10px; min-height: 76px; max-height: 118px;
+    flex: 0 0 auto;
     overflow-y: auto; display: flex; flex-direction: column;
-    justify-content: center; align-items: center; gap: 6px;
+    justify-content: center; align-items: center; gap: 4px;
     background: #16100b;
 }
 .btn-row { display: flex; gap: 6px; width: 100%; flex-wrap: wrap; }
@@ -232,11 +335,11 @@ canvas {
     justify-content: center;
     max-width: 720px;
     margin: 0 auto;
-    gap: 10px;
+    gap: 8px;
 }
 .combat-spec-btn {
     flex: 0 1 335px;
-    padding: 9px 14px;
+    padding: 7px 12px;
     font-size: 12px;
 }
 button {
@@ -274,6 +377,45 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
     display: flex; justify-content: space-between; align-items: center;
     border-bottom: 2px solid #7a5230; padding-bottom: 4px; margin-bottom: 6px;
     color: #ffd700; font-size: 13px; font-weight: bold; flex-shrink: 0;
+    gap: 8px; flex-wrap: wrap;
+}
+.hero-detail-header-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+}
+.hero-detail-pos {
+    font-size: 11px;
+    color: #b58c5e;
+    font-weight: normal;
+}
+.hero-detail-nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+#modal-content .hero-nav-btn,
+#modal-content .hero-back-btn {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    padding: 3px 9px;
+    font-size: 10px;
+    border-radius: 2px;
+    white-space: nowrap;
+}
+#modal-content .hero-nav-btn {
+    background: linear-gradient(180deg, #382415 0%, #1e130b 100%);
+    border-color: #b58c5e;
+    color: #ffd700;
+}
+#modal-content .hero-nav-btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #4f331d 0%, #2b1b10 100%);
+    border-color: #ffd700;
+    color: #fff;
 }
 .hero-grid {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 6px;
@@ -333,6 +475,13 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
     border: 1px solid #6b4c30; background: #16100a; padding: 4px 5px;
     font-size: 10px; cursor: pointer; text-align: center; min-height: 30px;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.skill-cell-title {
+    color: #ffd700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
 }
 .skill-cell:hover, .skill-cell.selected { border-color: #ffd700; background: #2c1e12; }
 .inspector-box {
@@ -483,10 +632,14 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
     font-weight: bold;
     color: #fff;
     text-shadow: 0 1px 2px #000;
+    z-index: 2;
 }
 .rpg-card-emoji {
     font-size: 17px;
     line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 .rpg-card-stars {
     position: absolute;
@@ -496,6 +649,7 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
     color: #ffd700;
     letter-spacing: -1px;
     text-shadow: 0 1px 2px #000;
+    z-index: 2;
 }
 .rpg-card-meta {
     display: flex;
@@ -669,50 +823,357 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
     color: #fff;
 }
 
-/* Дерево талантов по 2 направлениям (Натиск и Защита) без колонки тиров */
-.wow-branch-headers {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
-    font-size: 10px; font-weight: bold; color: #b58c5e; text-align: center; margin-bottom: 4px;
+/* Дерево талантов по 2 направлениям (Натиск и Защита) с увеличенной областью справа */
+.hero-detail-top-grid {
+    display: grid;
+    grid-template-columns: 1.02fr 0.98fr;
+    gap: 8px;
+    margin-top: 2px;
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: stretch;
 }
-.wow-tree {
-    background: radial-gradient(circle at center, #21160e 0%, #0e0906 100%);
-    border: 2px solid #5c4028;
-    box-shadow: inset 0 0 0 1px rgba(212, 162, 76, 0.18);
-    padding: 6px; margin-bottom: 5px;
+.hero-detail-left-col {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
 }
-.wow-tier-row {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: center;
+.hero-status-sec {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 6px;
 }
-.wow-connector-row {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
-    text-align: center; color: #7a5230; font-size: 10px; line-height: 10px; margin: 2px 0;
+.hero-status-summary-box {
+    margin-top: auto;
+    padding: 6px 8px;
+    background: #0c0806;
+    border: 1px solid #4a3522;
+    border-left: 3px solid #8c6239;
+    font-size: 10px;
+    line-height: 1.35;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
-.wow-node {
-    border: 2px solid #4a3828; background: #140e09; padding: 4px 6px;
-    cursor: pointer; position: relative; display: flex; align-items: center; gap: 6px;
-    font-size: 10px; min-height: 32px; min-width: 0;
-}
-.wow-node.available { border-color: #8c6b3f; background: #1d140c; }
-.wow-node.unlocked { border-color: #ffd700; background: #2e2010; box-shadow: 0 0 8px rgba(255,215,0,0.3); }
-.wow-node.selected { outline: 1px dashed #fff; }
-.wow-node.locked { opacity: 0.55; }
-.wow-node-icon {
-    width: 20px; height: 20px; border: 1px solid #7a5230; background: #0c0806;
-    display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0;
-}
-.wow-node-rank {
-    position: absolute; bottom: 1px; right: 2px; font-size: 8px;
-    background: #000; padding: 0 3px; border: 1px solid #5c4028; color: #ffd700;
+.hero-talent-sec {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 0;
+    gap: 5px;
+    position: relative;
 }
 
-/* Нижняя панель Состояния (увеличенная: Травмы, Дебаффы, Пассивки и Осмотр Талантов) */
+/* ============================================================================
+   ДЕРЕВО ТАЛАНТОВ В СТИЛЕ BAROTRAUMA (в утверждённой тёмной средневековой палитре)
+   ============================================================================ */
+.baro-tree-board {
+    background: #0c0805;
+    border: 2px solid #5c4028;
+    box-shadow: inset 0 0 0 1px rgba(212, 162, 76, 0.16), inset 0 0 18px rgba(0, 0, 0, 0.85);
+    padding: 7px 8px;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+}
+.baro-general-row {
+    background: #18110b;
+    border: 1px solid #3d2b1c;
+    border-radius: 5px;
+    padding: 5px 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    flex-shrink: 0;
+}
+.baro-general-row.cell-unlocked,
+.baro-tier-cell.cell-unlocked {
+    background: #1d150d;
+    border-color: #6b4c30;
+}
+.baro-tier-icons-pair {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+}
+.baro-tier-icons-pair.general-icons {
+    gap: 18px;
+}
+.baro-branch-headers {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 7px;
+    flex-shrink: 0;
+}
+.baro-branch-header-box {
+    background: #0a0705;
+    border: 1px solid #6b4c30;
+    color: #f0e6d2;
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 0.4px;
+    text-align: center;
+    padding: 4px 4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.baro-branches-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 7px;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.baro-branch-col {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-height: 0;
+}
+.baro-tier-cell {
+    background: #18110b;
+    border: 1px solid #3d2b1c;
+    border-radius: 5px;
+    padding: 4px 6px;
+    flex: 1 1 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    min-height: 44px;
+}
+.baro-cell-check {
+    position: absolute;
+    right: 5px;
+    bottom: 4px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: #5ce65c;
+    color: #0b0805;
+    font-size: 9px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 5px rgba(92, 230, 92, 0.45);
+    pointer-events: none;
+}
+.baro-cell-check.empty {
+    background: transparent;
+    border: 1px solid #2e2015;
+    box-shadow: none;
+}
+
+/* Квадратные кнопки-иконки талантов (лучи для открытых/доступных, косая штриховка для закрытых) */
+.baro-icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 5px;
+    border: 2px solid #4a3522;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.12s, border-color 0.15s, box-shadow 0.15s;
+    user-select: none;
+}
+.baro-icon-glyph {
+    font-size: 18px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.95));
+    z-index: 1;
+}
+.baro-icon-btn.unlocked {
+    border-color: #ffd700;
+    background:
+        radial-gradient(circle at center, rgba(255, 215, 0, 0.22) 0%, rgba(16, 11, 7, 0.85) 75%),
+        repeating-conic-gradient(from 0deg, rgba(212, 162, 76, 0.32) 0deg 11deg, rgba(16, 11, 7, 0.94) 11deg 22deg);
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.32), inset 0 0 6px rgba(255, 215, 0, 0.2);
+}
+.baro-icon-btn.available {
+    border-color: #b58c5e;
+    background:
+        radial-gradient(circle at center, rgba(198, 156, 109, 0.15) 0%, rgba(15, 10, 7, 0.9) 75%),
+        repeating-conic-gradient(from 0deg, rgba(181, 140, 94, 0.22) 0deg 11deg, rgba(15, 10, 7, 0.96) 11deg 22deg);
+}
+.baro-icon-btn.locked,
+.baro-icon-btn.sibling-locked {
+    border-color: #36271b;
+    background: repeating-linear-gradient(
+        -35deg,
+        #0c0805 0px,
+        #0c0805 4px,
+        #1a120c 4px,
+        #1a120c 8px
+    );
+}
+.baro-icon-btn.locked .baro-icon-glyph,
+.baro-icon-btn.sibling-locked .baro-icon-glyph {
+    opacity: 0.38;
+    filter: grayscale(0.85) drop-shadow(0 1px 2px #000);
+}
+.baro-icon-btn:hover {
+    border-color: #ffd700;
+    z-index: 40;
+}
+.baro-icon-btn.selected {
+    outline: 2px solid #fff3d6;
+    outline-offset: 1px;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.55);
+}
+
+/* Всплывающий тултип в стиле второго референса (Самоделкин) с подсветкой чисел зелёным */
+.baro-floating-tooltip {
+    display: none;
+    position: absolute;
+    width: 270px;
+    background: #0b0805;
+    border: 2px solid #8c6239;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.96), inset 0 0 0 1px rgba(255, 215, 0, 0.16);
+    border-radius: 4px;
+    padding: 9px 11px;
+    color: #e6dac6;
+    font-size: 11px;
+    line-height: 1.35;
+    text-align: left;
+    z-index: 120;
+    pointer-events: none;
+}
+.baro-icon-btn:hover .baro-floating-tooltip {
+    display: block;
+}
+.baro-floating-tooltip.tip-down {
+    top: calc(100% + 6px);
+}
+.baro-floating-tooltip.tip-up {
+    bottom: calc(100% + 6px);
+}
+.baro-floating-tooltip.tip-left {
+    left: 0;
+}
+.baro-floating-tooltip.tip-center {
+    left: 50%;
+    transform: translateX(-50%);
+}
+.baro-floating-tooltip.tip-right {
+    right: 0;
+}
+.baro-tip-title {
+    color: #ffd700;
+    font-size: 13px;
+    font-weight: bold;
+    margin-bottom: 6px;
+    border-bottom: 1px solid rgba(181, 140, 94, 0.35);
+    padding-bottom: 3px;
+}
+.baro-tip-body p {
+    margin: 0 0 6px 0;
+    color: #decbb3;
+}
+.baro-tip-body p:last-child {
+    margin-bottom: 0;
+}
+.baro-hl-num {
+    color: #66e666;
+    font-weight: bold;
+}
+.baro-tip-status {
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px dashed #4a3522;
+    font-size: 10px;
+    font-weight: bold;
+}
+.baro-tip-status.unlocked { color: #5ce65c; }
+.baro-tip-status.available { color: #ffd700; }
+.baro-tip-status.locked { color: #ff7a7a; }
+.baro-tip-status.muted { color: #8c7a65; }
+
+/* Нижняя полоса прогресса и кнопки СБРОСИТЬ / ИЗУЧИТЬ */
+.baro-bottom-bar {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.baro-progress-wrap {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    min-width: 0;
+}
+.baro-progress-track {
+    height: 12px;
+    background: #0c0805;
+    border: 1px solid #6b4c30;
+    padding: 1px;
+    position: relative;
+}
+.baro-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4b8c3b 0%, #6fd656 100%);
+    transition: width 0.2s ease;
+}
+.baro-progress-label {
+    font-size: 9px;
+    font-weight: bold;
+    color: #b59b7c;
+    text-align: right;
+    letter-spacing: 0.3px;
+}
+.baro-actions-wrap {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+#modal-content .baro-action-btn,
+.baro-action-btn {
+    min-width: 82px !important;
+    width: auto !important;
+    padding: 5px 10px !important;
+    font-size: 10px !important;
+    font-weight: bold;
+    letter-spacing: 0.4px;
+    border: 1px solid #8c6239;
+    background: linear-gradient(180deg, #2b1d12 0%, #170f09 100%);
+    color: #f0e6d2;
+}
+#modal-content .baro-action-btn.apply-btn:not(:disabled),
+.baro-action-btn.apply-btn:not(:disabled) {
+    border-color: #d4af37;
+    background: linear-gradient(180deg, #593b12 0%, #332008 100%);
+    color: #ffd700;
+}
+#modal-content .baro-action-btn:hover:not(:disabled),
+.baro-action-btn:hover:not(:disabled) {
+    border-color: #ffd700;
+    background: linear-gradient(180deg, #6e4916 0%, #422a0b 100%);
+    color: #fff;
+}
+
+/* Нижняя панель Осмотра (Экипировка, Навыки, Пассивки и Осмотр Талантов) */
 .status-bottom-panel {
     margin-top: 6px; border: 2px solid #6b4c30;
     box-shadow: inset 0 0 0 1px rgba(212, 162, 76, 0.18);
     background: #110b07; padding: 6px 10px;
     font-size: 11px; line-height: 1.3;
-    flex: 1 1 auto;
-    min-height: 125px;
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -727,12 +1188,12 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
     gap: 5px;
     flex-wrap: wrap;
     align-items: center;
-    max-height: 52px;
+    max-height: 58px;
     overflow-y: auto;
     padding: 2px 0;
 }
 .status-badge {
-    border: 1px solid #5c4028; padding: 3px 8px; cursor: pointer; background: #1a120c; font-size: 10px; border-radius: 2px;
+    border: 1px solid #5c4028; padding: 4px 8px; cursor: pointer; background: #1a120c; font-size: 10px; border-radius: 2px;
 }
 .status-badge.selected {
     outline: 1px solid #ffd700;
@@ -745,7 +1206,11 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: stretch;
+}
+.status-inspector-area > .rpg-cards-grid {
+    flex: 1 1 auto;
+    align-items: stretch;
 }
 .npc-header-flex {
     display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #7a5230;
@@ -838,11 +1303,9 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
 }
 .concept-squad-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
-    margin-bottom: 8px;
-    padding-bottom: 4px;
-    border-bottom: 1px dashed #5c4028;
+    margin-bottom: 6px;
     gap: 8px;
 }
 .concept-squad-hint {
@@ -861,6 +1324,7 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
     flex: 0 0 auto !important;
     width: auto !important;
     max-width: 110px;
+    margin-left: auto;
     background: linear-gradient(180deg, #3b2d20 0%, #241a12 100%) !important;
     border: 1px solid #b58c5e !important;
     color: #ffd700 !important;
@@ -1222,6 +1686,10 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
 #modal-content .quest-close-btn {
     flex: 0 0 auto !important;
     width: 34px !important;
+    height: 30px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     background: linear-gradient(180deg, #3b2d20 0%, #241a12 100%) !important;
     border: 1px solid #b58c5e !important;
     color: #ffd700 !important;
@@ -1289,6 +1757,13 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
     font-size: 26px;
     line-height: 1;
     margin-top: 2px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.quest-circle-img .ui-icon-xl {
+    width: 38px;
+    height: 38px;
 }
 
 /* RPG-цвета медальонов сложности заданий */
@@ -1695,6 +2170,516 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
     cursor: not-allowed;
 }
 
+/* ==========================================================================
+   МЕНЮ ХОЗЯИНА ТАВЕРНЫ (ХАБ ИЗ 3 КНОПОК, БРОНЯ 4x6, ВЕТКА ТАВЕРНЫ, РАСХОДНИКИ)
+   ========================================================================== */
+.host-modal-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+.host-treasury-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12px;
+    padding: 4px 2px 8px 2px;
+    flex-shrink: 0;
+}
+.host-stock-summary {
+    color: #dec8ad;
+    font-size: 11px;
+}
+.host-subnav-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+#modal-content .host-tab-btn,
+.host-tab-btn {
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+    padding: 4px 10px !important;
+    font-size: 11px !important;
+    background: #1a120b !important;
+    border: 1px solid #6b4c30 !important;
+    color: #d0c4b2 !important;
+    border-radius: 2px;
+    text-transform: none !important;
+}
+#modal-content .host-tab-btn:hover,
+#modal-content .host-tab-btn.active {
+    background: linear-gradient(180deg, #3b2616 0%, #21150c 100%) !important;
+    border-color: #ffd700 !important;
+    color: #ffd700 !important;
+}
+#modal-content .host-tab-btn.back {
+    background: #2b1810 !important;
+    border-color: #8c583a !important;
+    color: #f0e6d2 !important;
+}
+
+/* Концепт 2: Главный хаб из 3 больших горизонтальных кнопок */
+.host-hub-center {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: #0c0806;
+    border: 2px solid #5c4028;
+    box-shadow: inset 0 0 0 1px rgba(212, 162, 76, 0.16), inset 0 0 24px rgba(0, 0, 0, 0.85);
+}
+.host-hub-buttons-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    width: 100%;
+    max-width: 980px;
+}
+#modal-content .host-hub-big-btn,
+.host-hub-big-btn {
+    min-height: 118px;
+    padding: 16px 14px !important;
+    background: linear-gradient(180deg, #1d140d 0%, #110b07 100%) !important;
+    border: 2px solid #7c5836 !important;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.8), inset 0 0 0 1px rgba(212, 162, 76, 0.2) !important;
+    border-radius: 3px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    text-transform: none !important;
+    transition: transform 0.12s, border-color 0.15s, box-shadow 0.15s;
+}
+#modal-content .host-hub-big-btn:hover {
+    border-color: #ffd700 !important;
+    background: linear-gradient(180deg, #2b1d12 0%, #160e09 100%) !important;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.9), 0 0 12px rgba(255, 215, 0, 0.25), inset 0 0 0 1px rgba(255, 215, 0, 0.35) !important;
+    transform: translateY(-2px);
+}
+.host-hub-btn-icon {
+    font-size: 28px;
+    line-height: 1;
+}
+.host-hub-btn-title {
+    font-size: 16px;
+    font-weight: bold;
+    color: #ffd700;
+    font-style: italic;
+    text-shadow: 0 1px 2px #000;
+}
+.host-hub-btn-sub {
+    font-size: 11px;
+    color: #b5a088;
+    font-weight: normal;
+    text-align: center;
+}
+
+/* Концепт 1: 2-колоночный макет (Слева: Витрина + Статы/Предание, Справа: Сетка 4x6 / Ветка таверны / Расходники) */
+.host-shop-frame {
+    flex: 1;
+    min-height: 0;
+    border: 2px solid #5c4028;
+    box-shadow: inset 0 0 0 1px rgba(212, 162, 76, 0.18);
+    background: #110b07;
+    padding: 10px;
+    display: grid;
+    grid-template-columns: 0.9fr 1.1fr;
+    gap: 12px;
+}
+.host-shop-frame.host-upgrades-frame {
+    grid-template-columns: 0.72fr 1.28fr;
+}
+.host-left-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+}
+.host-image-box {
+    flex: 0 0 43%;
+    min-height: 145px;
+    border: 2px solid #6b4c30;
+    background: radial-gradient(circle at center, #261a11 0%, #0d0906 85%);
+    box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.85);
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    border-radius: 2px;
+}
+.host-upgrade-showcase {
+    border-color: #7c5836;
+    background: radial-gradient(circle at center, #281b11 0%, #0c0806 85%);
+}
+.host-showcase-badge {
+    align-self: flex-start;
+    font-size: 10px;
+    font-weight: bold;
+    color: #d4a24c;
+    background: rgba(12, 8, 6, 0.78);
+    border: 1px solid #5c4028;
+    padding: 2px 7px;
+    border-radius: 2px;
+}
+.host-showcase-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin: auto 0;
+}
+.host-showcase-icon {
+    font-size: 44px;
+    line-height: 1;
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.85));
+}
+.host-showcase-title {
+    font-size: 15px;
+    font-weight: bold;
+    color: #fff3d6;
+    text-align: center;
+    text-shadow: 0 1px 3px #000;
+}
+.host-showcase-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding-top: 4px;
+    border-top: 1px dashed rgba(124, 88, 54, 0.45);
+}
+#modal-content .host-buy-action-btn,
+.host-buy-action-btn {
+    flex: 0 1 auto !important;
+    min-width: 140px !important;
+    padding: 5px 12px !important;
+    font-size: 11px !important;
+}
+.host-price-corner {
+    font-size: 13px;
+    font-weight: bold;
+    color: #f0e6d2;
+    font-style: italic;
+    white-space: nowrap;
+    margin-left: auto;
+}
+
+.host-stats-box {
+    flex: 1;
+    min-height: 0;
+    border: 2px solid #5c4028;
+    box-shadow: inset 0 0 0 1px rgba(212, 162, 76, 0.14);
+    background: #0c0806;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 8px;
+}
+.host-stats-upper {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.host-lore-inner-box {
+    border: 2px solid #5c4028;
+    background: #140d08;
+    box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.85);
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-radius: 2px;
+}
+.host-lore-desc {
+    font-size: 11px;
+    color: #d8c8b4;
+    line-height: 1.3;
+}
+.host-lore-quote {
+    font-size: 11px;
+    color: #ffd700;
+    font-style: italic;
+    line-height: 1.3;
+}
+
+/* Правая панель магазина: сетка 4x6 для брони, дерево таверны и список расходников */
+.host-right-col {
+    border: 2px solid #5c4028;
+    box-shadow: inset 0 0 0 1px rgba(212, 162, 76, 0.14);
+    background: #0c0806;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+}
+.host-armor-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+    gap: 7px;
+    flex: 1;
+    min-height: 0;
+}
+.host-armor-cell {
+    padding: 5px 7px;
+    border-radius: 2px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    transition: transform 0.1s, border-color 0.12s, box-shadow 0.12s;
+    min-height: 46px;
+}
+.host-armor-cell:hover {
+    border-color: #ffd700 !important;
+    transform: translateY(-1px);
+}
+.host-armor-cell.selected-cell {
+    border-color: #ffd700 !important;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.45), inset 0 0 6px rgba(255, 215, 0, 0.25) !important;
+}
+.host-armor-cell.purchased-cell {
+    opacity: 0.55;
+}
+.host-cell-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 4px;
+}
+.host-cell-icon {
+    font-size: 14px;
+    line-height: 1;
+}
+.host-cell-price {
+    font-size: 10px;
+    font-weight: bold;
+    color: #ffd700;
+    white-space: nowrap;
+}
+.host-cell-name {
+    font-size: 10px;
+    font-weight: bold;
+    color: #f0e6d2;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Ветка прокачки таверны (5 веток: Казармы, Погреба, Лазарет, Кузница, Тёмное братство) */
+.host-upgrades-right-col {
+    overflow: hidden;
+}
+.host-upg-tree-scroll {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+.host-upg-branch-headers {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(112px, 1fr));
+    gap: 6px;
+    text-align: center;
+    font-size: 10px;
+    font-weight: bold;
+    color: #d4a24c;
+    padding-bottom: 5px;
+    margin-bottom: 6px;
+    border-bottom: 1px dashed #5c4028;
+}
+.host-upg-branch-headers .hdr-forge {
+    color: #f0a854;
+}
+.host-upg-branch-headers .hdr-dark {
+    color: #d47070;
+}
+.host-upg-tree-wrap {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    flex: 1;
+    gap: 2px;
+}
+.host-upg-tier-row {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(112px, 1fr));
+    gap: 6px;
+}
+.host-upg-connectors {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(112px, 1fr));
+    gap: 6px;
+    text-align: center;
+    font-size: 10px;
+    line-height: 10px;
+    color: #7c5836;
+}
+.host-upgrade-node {
+    background: linear-gradient(180deg, #1b130d 0%, #110b07 100%);
+    border: 2px solid #5c4028;
+    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.8);
+    border-radius: 2px;
+    padding: 5px 6px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    min-height: 46px;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+.host-upgrade-node.upg-branch-forge.upg-available {
+    border-color: #9e6530;
+}
+.host-upgrade-node.upg-branch-dark {
+    background: linear-gradient(180deg, #1a1014 0%, #0e080a 100%);
+}
+.host-upgrade-node.upg-branch-dark.upg-available {
+    border-color: #7c3840;
+}
+.host-upgrade-node.upg-branch-dark.upg-unlocked {
+    background: linear-gradient(180deg, #2d1419 0%, #16090c 100%);
+    border-color: #c9565e;
+    box-shadow: 0 0 8px rgba(201, 86, 94, 0.25), inset 0 0 6px rgba(201, 86, 94, 0.15);
+}
+.host-upgrade-node.upg-unlocked {
+    background: linear-gradient(180deg, #2b1e11 0%, #171009 100%);
+    border-color: #d4a24c;
+    box-shadow: 0 0 8px rgba(212, 162, 76, 0.25), inset 0 0 6px rgba(212, 162, 76, 0.15);
+}
+.host-upgrade-node.upg-available {
+    border-color: #8c6239;
+}
+.host-upgrade-node.upg-locked {
+    opacity: 0.58;
+    border-color: #3d2b1c;
+}
+.host-upgrade-node:hover,
+.host-upgrade-node.selected-node {
+    border-color: #ffd700;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.35), inset 0 0 6px rgba(255, 215, 0, 0.2);
+}
+.host-upg-node-icon {
+    width: 24px;
+    height: 24px;
+    border: 1px solid #6b4c30;
+    background: #0c0806;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+.host-upg-node-icon .ui-icon-md {
+    width: 18px;
+    height: 18px;
+}
+.host-upg-node-info {
+    flex: 1;
+    min-width: 0;
+}
+.host-upg-node-title {
+    font-size: 9px;
+    font-weight: bold;
+    color: #f0e6d2;
+    line-height: 1.15;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.host-upg-node-meta {
+    font-size: 8px;
+    color: #d4a24c;
+    margin-top: 2px;
+}
+.host-upg-node-tier {
+    font-size: 8px;
+    color: #8c7662;
+    font-weight: bold;
+}
+
+/* Скромное меню расходников (Пиво, Аптечка, Бомба) */
+.host-consumables-right {
+    justify-content: flex-start;
+}
+.host-consumables-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.host-consumable-row-card {
+    background: linear-gradient(180deg, #1b130d 0%, #110b07 100%);
+    border: 2px solid #5c4028;
+    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.8);
+    border-radius: 2px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+.host-consumable-row-card:hover,
+.host-consumable-row-card.selected-node {
+    border-color: #ffd700;
+    background: linear-gradient(180deg, #281b11 0%, #160f09 100%);
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.3), inset 0 0 6px rgba(255, 215, 0, 0.15);
+}
+.host-cons-icon {
+    width: 38px;
+    height: 38px;
+    border: 1px solid #7c5836;
+    background: #0c0806;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+.host-cons-main {
+    flex: 1;
+    min-width: 0;
+}
+.host-cons-name {
+    font-size: 12px;
+    font-weight: bold;
+    color: #fff3d6;
+}
+.host-cons-effect {
+    font-size: 10px;
+    color: #9edb9e;
+    margin-top: 2px;
+}
+.host-cons-right {
+    text-align: right;
+    flex-shrink: 0;
+}
+.host-cons-price {
+    font-size: 12px;
+    font-weight: bold;
+    color: #ffd700;
+}
+.host-cons-stock {
+    font-size: 10px;
+    color: #b5a088;
+    margin-top: 2px;
+}
+
 /* Компьютерное разрешение: полноэкранное окно с крупными и легко читаемыми элементами */
 @media (min-width: 768px) and (min-height: 561px) {
     #modal-content, .modal-box {
@@ -1710,6 +2695,10 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
     .grid-2col {
         gap: 10px;
         flex: 0 1 auto;
+    }
+    .grid-2col.hero-detail-top-grid {
+        flex: 1 1 0;
+        min-height: 0;
     }
     .panel-sec {
         padding: 8px 10px;
@@ -1761,44 +2750,66 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
         font-size: 11px;
         line-height: 1.25;
     }
-    .wow-branch-headers {
-        font-size: 11px;
-        margin-bottom: 4px;
-    }
-    .wow-tree {
-        padding: 8px;
-        margin-bottom: 4px;
-    }
-    .wow-tier-row {
+    .baro-tree-board {
+        padding: 10px 12px;
         gap: 8px;
     }
-    .wow-connector-row {
-        gap: 8px;
+    .baro-general-row {
+        padding: 7px 14px;
+    }
+    .baro-branch-header-box {
         font-size: 11px;
-        line-height: 11px;
-        margin: 2px 0;
+        padding: 5px 6px;
     }
-    .wow-node {
-        min-height: 38px;
-        padding: 4px 8px;
+    .baro-tier-cell {
+        padding: 6px 8px;
+        min-height: 54px;
+    }
+    .baro-icon-btn {
+        width: 44px;
+        height: 44px;
+    }
+    .baro-icon-glyph {
+        font-size: 21px;
+    }
+    .ui-icon-talent {
+        width: 36px;
+        height: 36px;
+    }
+    .baro-floating-tooltip {
+        width: 300px;
+        font-size: 12px;
+        padding: 11px 14px;
+    }
+    .baro-tip-title {
+        font-size: 14px;
+    }
+    .baro-progress-track {
+        height: 15px;
+    }
+    .baro-progress-label {
+        font-size: 10px;
+    }
+    #modal-content .baro-action-btn,
+    .baro-action-btn {
+        min-width: 96px !important;
+        padding: 6px 14px !important;
+        font-size: 11px !important;
+    }
+    .hero-status-summary-box {
         font-size: 11px;
-        gap: 6px;
-    }
-    .wow-node-icon {
-        width: 24px;
-        height: 24px;
-        font-size: 13px;
-    }
-    .wow-node-rank {
-        font-size: 9px;
-        padding: 1px 4px;
+        padding: 8px 10px;
+        gap: 4px;
     }
     .status-bottom-panel {
         margin-top: 8px;
         padding: 8px 12px;
         font-size: 12px;
-        flex: 1 1 auto;
-        min-height: 150px;
+        flex: 0 0 238px;
+        height: 238px;
+        min-height: 238px;
+        max-height: 238px;
+        overflow-y: auto;
     }
     .status-badges-row {
         gap: 6px;
@@ -1922,6 +2933,7 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
     .quest-circle-diff { font-size: 7px; padding: 0 3px; }
     .quest-circle-title { font-size: 9px; }
     .quest-circle-img { font-size: 15px; margin-top: 0; }
+    .quest-circle-img .ui-icon-xl { width: 16px; height: 16px; }
     .quest-bullet-list { font-size: 8px; padding: 4px; gap: 2px; line-height: 1.15; }
     #modal-content .quest-take-btn { font-size: 9px !important; padding: 3px 4px !important; }
 
@@ -1955,6 +2967,38 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
     .verbirz-pool-card { min-height: 24px; padding: 2px 3px; border-width: 1px; }
     .verbirz-pool-line { font-size: 8px; }
     .verbirz-pool-status { font-size: 6px; }
+
+    /* Хозяин таверны в мобильном Landscape */
+    .host-treasury-row { font-size: 10px; padding: 2px 0 4px 0; }
+    .host-hub-center { padding: 8px; }
+    .host-hub-buttons-row { gap: 8px; }
+    #modal-content .host-hub-big-btn, .host-hub-big-btn { min-height: 76px; padding: 8px 6px !important; gap: 3px; }
+    .host-hub-btn-icon { font-size: 18px; }
+    .host-hub-btn-icon .ui-icon-2xl { width: 28px; height: 28px; }
+    .host-hub-btn-title { font-size: 12px; }
+    .host-hub-btn-sub { font-size: 8px; }
+    .host-shop-frame { padding: 5px; gap: 6px; }
+    .host-left-col { gap: 5px; }
+    .host-image-box { min-height: 86px; padding: 4px 8px; }
+    .host-showcase-icon { font-size: 24px; }
+    .host-showcase-icon .ui-icon-xl { width: 28px; height: 28px; }
+    .host-showcase-title { font-size: 11px; }
+    .host-price-corner { font-size: 10px; }
+    #modal-content .host-buy-action-btn, .host-buy-action-btn { min-width: 95px !important; padding: 3px 6px !important; font-size: 9px !important; }
+    .host-stats-box { padding: 5px 6px; gap: 4px; }
+    .host-lore-inner-box { padding: 4px 6px; }
+    .host-lore-desc, .host-lore-quote { font-size: 8px; }
+    .host-right-col { padding: 5px; }
+    .host-armor-grid { gap: 4px; }
+    .host-armor-cell { min-height: 30px; padding: 2px 4px; }
+    .host-cell-icon { font-size: 11px; }
+    .host-cell-icon .ui-icon-sm { width: 13px; height: 13px; }
+    .host-cell-price, .host-cell-name { font-size: 8px; }
+    .host-upgrade-node { min-height: 32px; padding: 3px 5px; gap: 4px; }
+    .host-upg-node-icon { width: 20px; height: 20px; font-size: 11px; }
+    .host-upg-node-icon .ui-icon-md { width: 16px; height: 16px; }
+    .host-upg-node-title { font-size: 8px; }
+    .host-upg-node-meta { font-size: 7px; }
 }
 
 @media (max-width: 767px) and (orientation: portrait) {
@@ -2033,6 +3077,7 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
     .quest-circle-diff { font-size: 7px; padding: 1px 4px; }
     .quest-circle-title { font-size: 10px; }
     .quest-circle-img { font-size: 18px; margin-top: 0; }
+    .quest-circle-img .ui-icon-xl { width: 22px; height: 22px; }
     .quest-bullet-list { font-size: 9px; padding: 5px; gap: 3px; line-height: 1.2; }
     #modal-content .quest-take-btn { font-size: 9px !important; padding: 5px 4px !important; }
 
@@ -2063,4 +3108,380 @@ button:disabled { border-color: #423224; color: #574435; cursor: not-allowed; ba
     .verbirz-pool-card { min-height: 36px; padding: 3px 4px; border-width: 2px; }
     .verbirz-pool-line { font-size: 9px; }
     .verbirz-pool-status { font-size: 7px; }
+
+    /* Хозяин таверны в мобильном Portrait */
+    .host-hub-buttons-row { grid-template-columns: 1fr; gap: 10px; }
+    .host-shop-frame { grid-template-columns: 1fr; gap: 8px; overflow-y: auto; }
+    .host-armor-grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: auto; }
 }
+
+/* Плашка похода и кнопка вступления в бой на карте Богемии */
+.map-action-overlay {
+    position: absolute;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    z-index: 25;
+    max-width: calc(100% - 44px);
+    width: auto;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+}
+.map-action-card {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 9px 16px;
+    background: rgba(18, 12, 7, 0.94);
+    border: 2px solid #b58c5e;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.88), inset 0 0 0 1px rgba(212, 162, 76, 0.18);
+    border-radius: 3px;
+}
+.map-action-card.map-alert-ambush {
+    border-color: #d94436;
+    background: linear-gradient(180deg, rgba(48, 14, 12, 0.96) 0%, rgba(22, 10, 8, 0.96) 100%);
+    box-shadow: 0 8px 26px rgba(180, 30, 20, 0.45), inset 0 0 12px rgba(255, 80, 60, 0.18);
+}
+.map-action-card.map-alert-quest {
+    border-color: #ffd700;
+    background: linear-gradient(180deg, rgba(38, 25, 13, 0.96) 0%, rgba(18, 12, 7, 0.96) 100%);
+    box-shadow: 0 8px 26px rgba(212, 162, 76, 0.35), inset 0 0 12px rgba(255, 215, 0, 0.14);
+}
+.map-action-card.map-alert-guild {
+    border-color: #66cc66;
+    background: linear-gradient(180deg, rgba(20, 34, 18, 0.96) 0%, rgba(12, 20, 11, 0.96) 100%);
+}
+.map-action-texts {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.map-action-title {
+    font-size: 13px;
+    font-weight: bold;
+    color: #ffd700;
+    letter-spacing: 0.2px;
+}
+.map-alert-ambush .map-action-title {
+    color: #ff7b6b;
+}
+.map-alert-guild .map-action-title {
+    color: #88ee88;
+}
+.map-action-sub {
+    font-size: 11px;
+    color: #e4d5be;
+    line-height: 1.3;
+}
+.map-action-btn {
+    flex: 0 0 auto;
+    min-width: 132px;
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: bold;
+    border-radius: 2px;
+    border: 2px solid #ffd700;
+    background: linear-gradient(180deg, #7a1c14 0%, #4d110c 100%);
+    color: #ffe89e;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 220, 140, 0.25);
+    cursor: pointer;
+    transition: transform 0.1s, filter 0.15s;
+}
+.map-action-btn:hover {
+    filter: brightness(1.18);
+    transform: translateY(-1px);
+    background: linear-gradient(180deg, #96241a 0%, #5c150f 100%);
+}
+.map-action-btn.guild-btn {
+    background: linear-gradient(180deg, #275824 0%, #173815 100%);
+    border-color: #7ee27e;
+    color: #e6ffe6;
+}
+@media (max-width: 640px) {
+    .map-action-overlay {
+        bottom: 14px;
+        max-width: calc(100% - 20px);
+        width: calc(100% - 20px);
+    }
+    .map-action-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        padding: 8px 10px;
+        width: 100%;
+    }
+    .map-action-title { font-size: 11px; }
+    .map-action-sub { font-size: 10px; }
+    .map-action-btn { width: 100%; padding: 7px 12px; font-size: 11px; }
+}
+
+/* Кузница братства — Горн, переплавка и ковка по рецептам */
+.smith-modal-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+.smith-top-bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    margin-bottom: 8px;
+    background: rgba(16, 10, 6, 0.9);
+    border: 1px solid #6b4c30;
+    border-radius: 3px;
+}
+.smith-metals-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+.smith-metal-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    background: #24170e;
+    border: 1px solid #755333;
+    border-radius: 2px;
+    font-size: 11px;
+    color: #edd8ba;
+}
+.smith-metal-pill.metal-iron { border-color: #8c96a4; }
+.smith-metal-pill.metal-bronze { border-color: #c88542; }
+.smith-metal-pill.metal-steel { border-color: #7eaee0; }
+.smith-metal-pill.metal-damask { border-color: #d9a73e; background: #2d1f0d; }
+.smith-metal-val {
+    color: #ffd700;
+    font-size: 12px;
+}
+.smith-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 2px;
+    border: 1px solid #6e5236;
+}
+.smith-status-badge.active {
+    background: rgba(34, 72, 28, 0.72);
+    border-color: #6bc46b;
+    color: #cbf7cb;
+}
+.smith-status-badge.test {
+    background: rgba(68, 42, 18, 0.72);
+    border-color: #c99244;
+    color: #f4d69c;
+}
+.smith-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.25fr;
+    gap: 10px;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.smith-col {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: rgba(15, 10, 6, 0.85);
+    border: 2px solid #6b4c30;
+    border-radius: 3px;
+    padding: 8px;
+}
+.smith-col-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid #5a3f27;
+    font-size: 12px;
+    font-weight: bold;
+    color: #ffd700;
+}
+.smith-col-count {
+    font-size: 11px;
+    color: #d0ba98;
+    font-weight: normal;
+}
+.smith-filter-row {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+#modal-content .smith-filter-btn {
+    padding: 3px 7px;
+    font-size: 10px;
+    min-width: 0;
+    background: #2b1d12;
+    border: 1px solid #755333;
+    color: #dec8ad;
+}
+#modal-content .smith-filter-btn.active {
+    background: #6d3d18;
+    border-color: #ffd700;
+    color: #fff2cc;
+}
+.smith-scroll-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    padding-right: 3px;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.smith-item-card, .smith-recipe-card {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 7px 8px;
+    background: #1f140c;
+    border: 1px solid #6b4c30;
+    border-left-width: 4px;
+    border-radius: 2px;
+}
+.smith-item-card {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+.smith-item-card.rarity-uncommon { border-left-color: #8c96a4; }
+.smith-item-card.rarity-rare { border-left-color: #4d90d6; }
+.smith-item-card.rarity-epic { border-left-color: #9e62d8; }
+.smith-item-card.rarity-legendary { border-left-color: #e69d2c; }
+.smith-item-main, .smith-recipe-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+.smith-item-icon {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #120b06;
+    border: 1px solid #6b4c30;
+    border-radius: 2px;
+}
+.smith-item-info, .smith-recipe-info {
+    flex: 1;
+    min-width: 0;
+}
+.smith-item-title {
+    font-size: 12px;
+    font-weight: bold;
+    color: #f6e7cb;
+}
+.smith-slot-label {
+    font-size: 10px;
+    font-weight: normal;
+    color: #bfa582;
+}
+.smith-item-sub, .smith-recipe-stats {
+    font-size: 11px;
+    color: #88e088;
+    margin-top: 1px;
+}
+.smith-recipe-desc {
+    font-size: 10px;
+    color: #c8b293;
+    margin-top: 2px;
+    line-height: 1.25;
+}
+.smith-yield-row, .smith-cost-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    margin-top: 3px;
+}
+.smith-cost-label {
+    font-size: 10px;
+    color: #bda482;
+}
+.smith-yield-tag, .smith-cost-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 6px;
+    font-size: 10px;
+    border-radius: 2px;
+    background: #150e08;
+    border: 1px solid #5b4029;
+    color: #e6d3b3;
+}
+.smith-cost-tag.cost-ok {
+    border-color: #4f944f;
+    color: #a9f0a9;
+    background: rgba(24, 52, 24, 0.7);
+}
+.smith-cost-tag.cost-low {
+    border-color: #a44242;
+    color: #f3a4a4;
+    background: rgba(62, 18, 18, 0.7);
+}
+#modal-content .smith-action-btn {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: bold;
+    min-width: 96px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+#modal-content .smith-action-btn.smelt-btn {
+    background: linear-gradient(180deg, #7a3114 0%, #4b1d0b 100%);
+    border-color: #d97c38;
+    color: #ffe3c4;
+}
+#modal-content .smith-action-btn.craft-btn {
+    background: linear-gradient(180deg, #2d5c28 0%, #1a3917 100%);
+    border-color: #79cc79;
+    color: #e8ffe8;
+}
+.smith-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 6px;
+    padding: 22px 12px;
+    color: #d0ba98;
+    font-size: 12px;
+}
+.smith-empty-sub {
+    font-size: 10px;
+    color: #9e8768;
+    max-width: 280px;
+}
+@media (max-width: 820px) {
+    .smith-grid {
+        grid-template-columns: 1fr;
+        overflow-y: auto;
+    }
+    .smith-col {
+        min-height: 220px;
+    }
+}
+
+

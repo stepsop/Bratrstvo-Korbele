@@ -1,6 +1,8 @@
-import { GameStateModel } from '../models/GameStateModel';
+import { GameStateModel, MetalType } from '../models/GameStateModel';
+import { GameDataCatalog } from '../models/GameDataCatalog';
 import { EquipmentItem } from '../models/EquipmentItem';
 import { CanvasRendererView } from './CanvasRendererView';
+import { uiIcon } from './UiIconHelper';
 
 /**
  * View-компонент диалоговых окон всех НПС Таверны (Хозяин, Палаты, Наемники, Вербовщик, Задания)
@@ -15,35 +17,356 @@ export class GuildNpcModalView {
 
     public renderHostDialog(state: GameStateModel, speech: string): void {
         this.openOverlay();
+        if (speech) {
+            state.hostMenuState.speech = speech;
+        }
+        const activeSpeech = state.hostMenuState.speech || state.tavernTales[0];
+        const tab = state.hostMenuState.activeTab;
+
+        const navRowHtml = tab === 'hub'
+            ? `
+                <div class="host-treasury-row">
+                    <span>${uiIcon('coins_stack', 'ui-icon-sm')} Казна гильдии: <b class="hl-gold">${state.gold} грошей</b></span>
+                </div>
+            `
+            : `
+                <div class="host-treasury-row">
+                    <span>${uiIcon('coins_stack', 'ui-icon-sm')} Казна гильдии: <b class="hl-gold">${state.gold} грошей</b></span>
+                    <div class="host-subnav-btns">
+                        <button class="host-tab-btn ${tab === 'upgrades' ? 'active' : ''}" onclick="switchHostTab('upgrades')">${uiIcon('tavern', 'ui-icon-xs')} Улучшения для гильдии</button>
+                        <button class="host-tab-btn ${tab === 'consumables' ? 'active' : ''}" onclick="switchHostTab('consumables')">${uiIcon('beer', 'ui-icon-xs')} Расходники</button>
+                        <button class="host-tab-btn ${tab === 'armor' ? 'active' : ''}" onclick="switchHostTab('armor')">${uiIcon('shield_cross', 'ui-icon-xs')} Броня</button>
+                        <button class="host-tab-btn back" onclick="switchHostTab('hub')">${uiIcon('arrow', 'ui-icon-xs')} В меню</button>
+                    </div>
+                </div>
+            `;
+
+        let bodyHtml = '';
+        if (tab === 'hub') {
+            bodyHtml = this.buildHostHubBody();
+        } else if (tab === 'armor') {
+            bodyHtml = this.buildHostArmorBody(state);
+        } else if (tab === 'upgrades') {
+            bodyHtml = this.buildHostUpgradesBody(state);
+        } else {
+            bodyHtml = this.buildHostConsumablesBody(state);
+        }
+
         this.modalContent.innerHTML = `
-            <div class="npc-dialog-box">
+            <div class="npc-dialog-box host-modal-wrapper">
                 <div class="npc-header-flex">
                     <canvas class="npc-avatar-canvas" id="npc-avatar" width="72" height="72"></canvas>
                     <div class="npc-quote-block">
                         <h3>Хозяин таверны (с золотым зубом)</h3>
-                        <div class="npc-quote-speech">${speech}</div>
+                        <div class="npc-quote-speech" onclick="openHostDialog()" title="Нажмите, чтобы услышать другую байку корчмаря" style="cursor:pointer;">${activeSpeech}</div>
                     </div>
-                    <button style="max-width:40px; padding:4px;" onclick="closeSquadModal()">✕</button>
+                    <button class="quest-close-btn" onclick="closeSquadModal()">${uiIcon('close', 'ui-icon-xs')}</button>
                 </div>
-                <div style="font-size:12px; margin-bottom:8px; display:flex; justify-content:space-between;">
-                    <span>🪙 Казна гильдии: <b class="hl-gold">${state.gold} грошей</b></span>
-                    <span>🍺 Пиво: <b>${state.beer}</b> | 💣 Горшки: <b>${state.pots}</b></span>
-                </div>
-                <div class="btn-row" style="margin-bottom:10px;">
-                    <button class="btn-sec" onclick="openHostDialog()">💬 Травить байку / Слухи Богемии</button>
-                </div>
-                <div class="squad-section-title"><span>🛒 ЛАВКА ХОЗЯИНА: ПРИПАСЫ И ОРУЖИЕ</span></div>
-                <div class="btn-row" style="margin-bottom:6px;">
-                    <button onclick="buyShopItem('beer')" ${state.gold < 10 ? 'disabled' : ''}>🍺 Купить Пиво 1d10 (10 гр.)</button>
-                    <button onclick="buyShopItem('pot')" ${state.gold < 25 ? 'disabled' : ''}>💣 Штурмовой горшок 1d20 (25 гр.)</button>
-                </div>
-                <div class="btn-row">
-                    <button onclick="buyShopItem('sword')" ${state.gold < 35 ? 'disabled' : ''}>🗡️ Гусарская сабля +2 Ур (35 гр.)</button>
-                    <button onclick="buyShopItem('plate')" ${state.gold < 40 ? 'disabled' : ''}>🛡️ Кованая кираса +2 Бр / +8% Блок (40 гр.)</button>
-                </div>
+                ${navRowHtml}
+                ${bodyHtml}
             </div>
         `;
         CanvasRendererView.drawNpcAvatar('host');
+    }
+
+    private buildHostHubBody(): string {
+        return `
+            <div class="host-hub-center">
+                <div class="host-hub-buttons-row">
+                    <button class="host-hub-big-btn" onclick="switchHostTab('upgrades')">
+                        <span class="host-hub-btn-icon">${uiIcon('tavern', 'ui-icon-2xl')}</span>
+                        <span class="host-hub-btn-title">Улучшения для гильдии</span>
+                        <span class="host-hub-btn-sub">Ветка прокачки таверны, казарм и палат</span>
+                    </button>
+                    <button class="host-hub-big-btn" onclick="switchHostTab('consumables')">
+                        <span class="host-hub-btn-icon">${uiIcon('beer', 'ui-icon-2xl')}</span>
+                        <span class="host-hub-btn-title">Расходники</span>
+                        <span class="host-hub-btn-sub">Пенное пиво, аптечки и штурмовые бомбы</span>
+                    </button>
+                    <button class="host-hub-big-btn" onclick="switchHostTab('armor')">
+                        <span class="host-hub-btn-icon">${uiIcon('shield_cross', 'ui-icon-2xl')}</span>
+                        <span class="host-hub-btn-title">Броня</span>
+                        <span class="host-hub-btn-sub">Доспехи, клинки и реликвии Богемии</span>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    private buildHostArmorBody(state: GameStateModel): string {
+        const items = state.hostArmorShop;
+        const selected = items.find(x => x.id === state.hostMenuState.selectedArmorId) || items[0];
+
+        const rarityLabels: Record<string, string> = {
+            grey: 'Обычное (I)',
+            green: 'Добротное (II)',
+            blue: 'Редкое (III)',
+            purple: 'Эпическое (IV)',
+            gold: 'Легендарное (V)'
+        };
+        const slotLabels: Record<string, string> = {
+            armor: 'Доспех',
+            weapon: 'Оружие',
+            trinket: 'Талисман'
+        };
+        const rating = 100 + selected.atk * 140 + selected.armor * 135 + selected.block * 25;
+        const canBuy = !selected.purchased && state.gold >= selected.price;
+
+        const gridCellsHtml = items.map(item => {
+            const isSel = item.id === selected.id;
+            return `
+                <div class="host-armor-cell mastery-${item.rarity} ${isSel ? 'selected-cell' : ''} ${item.purchased ? 'purchased-cell' : ''}"
+                     onclick="selectHostArmorItem('${item.id}')">
+                    <div class="host-cell-top">
+                        <span class="host-cell-icon">${uiIcon(item.icon, 'ui-icon-sm')}</span>
+                        <span class="host-cell-price">${item.purchased ? `${uiIcon('check', 'ui-icon-xs')} В сумке` : `${item.price} гр.`}</span>
+                    </div>
+                    <div class="host-cell-name">${item.name}</div>
+                </div>
+            `;
+        }).join('');
+
+        return `
+            <div class="host-shop-frame">
+                <div class="host-left-col">
+                    <div class="host-image-box mastery-${selected.rarity}">
+                        <div class="host-showcase-badge">${rarityLabels[selected.rarity] || 'Обычное'}</div>
+                        <div class="host-showcase-center">
+                            <div class="host-showcase-icon">${uiIcon(selected.icon, 'ui-icon-xl')}</div>
+                            <div class="host-showcase-title">${selected.name}</div>
+                        </div>
+                        <div class="host-showcase-footer">
+                            <button class="btn-rpg-gear host-buy-action-btn"
+                                    onclick="buyHostArmorItem('${selected.id}')"
+                                    ${!canBuy ? 'disabled' : ''}>
+                                ${selected.purchased ? `${uiIcon('check', 'ui-icon-xs')} КУПЛЕНО В АРСЕНАЛ` : `${uiIcon('coins', 'ui-icon-xs')} КУПИТЬ В АРСЕНАЛ`}
+                            </button>
+                            <div class="host-price-corner">Цена: <span class="hl-gold">${selected.price} гр.</span></div>
+                        </div>
+                    </div>
+
+                    <div class="host-stats-box">
+                        <div class="host-stats-upper">
+                            <div class="rpg-card-section-title">Характеристики и бонусы (как в осмотре героя)</div>
+                            <div class="rpg-card-meta" style="margin-bottom:5px;">
+                                <div>Качество: <span class="meta-val">${rarityLabels[selected.rarity]}</span> &nbsp;|&nbsp; Слот: <span class="meta-val">${slotLabels[selected.slot]}</span></div>
+                                <div>Рейтинг снаряжения: <span class="meta-green">${rating}</span></div>
+                            </div>
+                            <div class="rpg-card-stats">
+                                <div class="rpg-stat-line">Урон к атаке: <span class="${selected.atk > 0 ? 'stat-green' : 'stat-muted'}">+${selected.atk} ед.</span></div>
+                                <div class="rpg-stat-line">Защита брони: <span class="${selected.armor > 0 ? 'stat-green' : 'stat-muted'}">+${selected.armor} ед.</span></div>
+                                <div class="rpg-stat-line">Шанс блока: <span class="${selected.block > 0 ? 'stat-green' : 'stat-muted'}">+${selected.block}%</span></div>
+                            </div>
+                        </div>
+
+                        <div class="host-lore-inner-box">
+                            <div class="host-lore-desc">${selected.desc}</div>
+                            <div class="host-lore-quote">${selected.loreQuote}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="host-right-col">
+                    <div class="host-armor-grid">
+                        ${gridCellsHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    private buildHostUpgradesBody(state: GameStateModel): string {
+        const upgrades = state.tavernUpgrades;
+        const selected = upgrades.find(u => u.id === state.hostMenuState.selectedUpgradeId) || upgrades[0];
+
+        const isPrevTierUnlocked = selected.tier === 1 || upgrades.some(
+            u => u.branch === selected.branch && u.tier === selected.tier - 1 && u.unlocked
+        );
+        const canUnlock = !selected.unlocked && isPrevTierUnlocked && state.gold >= selected.price;
+
+        let btnText = `${uiIcon('smith_hammer', 'ui-icon-xs')} УЛУЧШИТЬ ТАВЕРНУ`;
+        if (selected.unlocked) btnText = `${uiIcon('check', 'ui-icon-xs')} УЖЕ ПОСТРОЕНО`;
+        else if (!isPrevTierUnlocked) btnText = `${uiIcon('lock', 'ui-icon-xs')} НУЖНА СТУПЕНЬ ${selected.tier - 1}`;
+
+        const statRowsHtml = selected.statLines.map(line => `
+            <div class="rpg-stat-line"><span class="stat-green">✦ ${line}</span></div>
+        `).join('');
+
+        // Строим сетку дерева таверны (5 веток по 4 ступени)
+        const tiers = [1, 2, 3, 4] as const;
+        const branches = [1, 2, 3, 4, 5] as const;
+        const treeRowsHtml = tiers.map(tier => {
+            const colsHtml = branches.map(branch => {
+                const node = upgrades.find(u => u.branch === branch && u.tier === tier)!;
+                const prevOk = tier === 1 || upgrades.some(u => u.branch === branch && u.tier === tier - 1 && u.unlocked);
+                const isSel = node.id === selected.id;
+                const stateCls = node.unlocked ? 'upg-unlocked' : (prevOk ? 'upg-available' : 'upg-locked');
+                const branchCls = branch === 4 ? 'upg-branch-forge' : (branch === 5 ? 'upg-branch-dark' : '');
+
+                return `
+                    <div class="host-upgrade-node ${stateCls} ${branchCls} ${isSel ? 'selected-node' : ''}"
+                         onclick="selectHostUpgrade('${node.id}')">
+                        <div class="host-upg-node-icon">${uiIcon(node.icon, 'ui-icon-md')}</div>
+                        <div class="host-upg-node-info">
+                            <div class="host-upg-node-title">${node.name}</div>
+                            <div class="host-upg-node-meta">${node.unlocked ? `${uiIcon('check', 'ui-icon-xs')} Открыто` : `${node.price} гр.`}</div>
+                        </div>
+                        <div class="host-upg-node-tier">T${node.tier}</div>
+                    </div>
+                `;
+            }).join('');
+
+            const connectorHtml = tier < 4 ? `
+                <div class="host-upg-connectors">
+                    <div>▼</div><div>▼</div><div>▼</div><div>▼</div><div>▼</div>
+                </div>
+            ` : '';
+
+            return `
+                <div class="host-upg-tier-row">${colsHtml}</div>
+                ${connectorHtml}
+            `;
+        }).join('');
+
+        return `
+            <div class="host-shop-frame host-upgrades-frame">
+                <div class="host-left-col">
+                    <div class="host-image-box host-upgrade-showcase">
+                        <div class="host-showcase-badge">${selected.branchTitle} • Ступень ${selected.tier}</div>
+                        <div class="host-showcase-center">
+                            <div class="host-showcase-icon">${uiIcon(selected.icon, 'ui-icon-xl')}</div>
+                            <div class="host-showcase-title">${selected.name}</div>
+                        </div>
+                        <div class="host-showcase-footer">
+                            <button class="btn-rpg-gear host-buy-action-btn"
+                                    onclick="buyTavernUpgrade('${selected.id}')"
+                                    ${!canUnlock ? 'disabled' : ''}>
+                                ${btnText}
+                            </button>
+                            <div class="host-price-corner">Цена: <span class="hl-gold">${selected.price} гр.</span></div>
+                        </div>
+                    </div>
+
+                    <div class="host-stats-box">
+                        <div class="host-stats-upper">
+                            <div class="rpg-card-section-title">Что дает улучшение гильдии</div>
+                            <div class="rpg-card-stats">
+                                ${statRowsHtml}
+                            </div>
+                        </div>
+
+                        <div class="host-lore-inner-box">
+                            <div class="host-lore-desc">${selected.desc}</div>
+                            <div class="host-lore-quote">${selected.loreQuote}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="host-right-col host-upgrades-right-col">
+                    <div class="host-upg-tree-scroll">
+                        <div class="host-upg-branch-headers">
+                            <span>I. Казармы</span>
+                            <span>II. Погреба</span>
+                            <span>III. Лазарет</span>
+                            <span class="hdr-forge">IV. Кузница</span>
+                            <span class="hdr-dark">V. Тёмное братство</span>
+                        </div>
+                        <div class="host-upg-tree-wrap">
+                            ${treeRowsHtml}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    private buildHostConsumablesBody(state: GameStateModel): string {
+        const list = state.hostConsumables;
+        const selected = list.find(c => c.id === state.hostMenuState.selectedConsumableId) || list[0];
+
+        const getEffectivePrice = (id: 'beer' | 'medkit' | 'pot', base: number): number => {
+            if (id === 'beer' && state.tavernUpgrades.some(u => u.id === 'upg_b2_t1' && u.unlocked)) return Math.max(5, base - 2);
+            if (id === 'medkit' && state.tavernUpgrades.some(u => u.id === 'upg_b3_t1' && u.unlocked)) return Math.max(10, base - 3);
+            if (id === 'pot' && state.tavernUpgrades.some(u => u.id === 'upg_b2_t3' && u.unlocked)) return Math.max(15, base - 5);
+            return base;
+        };
+
+        const getStockCount = (id: 'beer' | 'medkit' | 'pot'): number => {
+            if (id === 'beer') return state.beer;
+            if (id === 'medkit') return state.medkits;
+            return state.pots;
+        };
+
+        const selPrice = getEffectivePrice(selected.id, selected.price);
+        const selStock = getStockCount(selected.id);
+        const canBuy = state.gold >= selPrice;
+
+        const statRowsHtml = selected.statLines.map(line => `
+            <div class="rpg-stat-line"><span class="stat-green">• ${line}</span></div>
+        `).join('');
+
+        const cardsHtml = list.map(c => {
+            const isSel = c.id === selected.id;
+            const curPrice = getEffectivePrice(c.id, c.price);
+            const curStock = getStockCount(c.id);
+            return `
+                <div class="host-consumable-row-card ${isSel ? 'selected-node' : ''}"
+                     onclick="selectHostConsumable('${c.id}')">
+                    <div class="host-cons-icon">${uiIcon(c.icon, 'ui-icon-lg')}</div>
+                    <div class="host-cons-main">
+                        <div class="host-cons-name">${c.name}</div>
+                        <div class="host-cons-effect">${c.effectTitle}</div>
+                    </div>
+                    <div class="host-cons-right">
+                        <div class="host-cons-price">${curPrice} гр.</div>
+                        <div class="host-cons-stock">В сумке: <b>${curStock}</b></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        return `
+            <div class="host-shop-frame">
+                <div class="host-left-col">
+                    <div class="host-image-box host-upgrade-showcase">
+                        <div class="host-showcase-badge">В запасе отряда: ${selStock} шт.</div>
+                        <div class="host-showcase-center">
+                            <div class="host-showcase-icon">${uiIcon(selected.icon, 'ui-icon-xl')}</div>
+                            <div class="host-showcase-title">${selected.name}</div>
+                        </div>
+                        <div class="host-showcase-footer">
+                            <button class="btn-rpg-gear host-buy-action-btn"
+                                    onclick="buyShopItem('${selected.id}')"
+                                    ${!canBuy ? 'disabled' : ''}>
+                                ${uiIcon('coins', 'ui-icon-xs')} КУПИТЬ РАСХОДНИК (+1)
+                            </button>
+                            <div class="host-price-corner">Цена: <span class="hl-gold">${selPrice} гр.</span></div>
+                        </div>
+                    </div>
+
+                    <div class="host-stats-box">
+                        <div class="host-stats-upper">
+                            <div class="rpg-card-section-title">${selected.effectTitle}</div>
+                            <div class="rpg-card-stats">
+                                ${statRowsHtml}
+                            </div>
+                        </div>
+
+                        <div class="host-lore-inner-box">
+                            <div class="host-lore-desc">${selected.desc}</div>
+                            <div class="host-lore-quote">${selected.loreQuote}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="host-right-col host-consumables-right">
+                    <div class="rpg-card-section-title" style="margin-bottom:6px;">Припасы в дорогу</div>
+                    <div class="host-consumables-list">
+                        ${cardsHtml}
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     public renderClinicDialog(state: GameStateModel): void {
@@ -58,17 +381,17 @@ export class GuildNpcModalView {
             const isAtClinic = h.status === 'clinic';
 
             const statusText = isAtClinic
-                ? `<span class="hl-gold">🏥 В палатах (${h.timer} ц.)</span>`
+                ? `<span class="hl-gold">${uiIcon('heal_cross', 'ui-icon-xs')} В палатах (${h.timer} ц.)</span>`
                 : (hpDeficit === 0 && injCount === 0
-                    ? `<span class="hl-green">✓ Здоров</span>`
+                    ? `<span class="hl-green">${uiIcon('check', 'ui-icon-xs')} Здоров</span>`
                     : `${hpDeficit > 0 ? `Ранен (-${hpDeficit} HP) ` : ''}${injCount > 0 ? `<span class="hl-red">${h.injuries.join(', ')}</span>` : ''}`);
 
             const healHpBtn = (!isAtClinic && hpDeficit > 0)
-                ? `<button style="font-size:10px; padding:4px 6px; max-width:130px;" onclick="treatHeroInClinic(${idx}, 'hp')" ${state.gold < 10 || h.status !== 'ready' ? 'disabled' : ''}>🩹 HP [10гр | 1ц]</button>`
+                ? `<button style="font-size:10px; padding:4px 6px; max-width:130px;" onclick="treatHeroInClinic(${idx}, 'hp')" ${state.gold < 10 || h.status !== 'ready' ? 'disabled' : ''}>${uiIcon('heart_heal', 'ui-icon-xs')} HP [10гр | 1ц]</button>`
                 : '';
 
             const healInjBtn = (!isAtClinic && injCount > 0)
-                ? `<button style="font-size:10px; padding:4px 6px; max-width:155px;" onclick="treatHeroInClinic(${idx}, 'injuries')" ${state.gold < 15 * injCount || h.status !== 'ready' ? 'disabled' : ''}>💊 Травмы [${15 * injCount}гр | ${1 + injCount}ц]</button>`
+                ? `<button style="font-size:10px; padding:4px 6px; max-width:155px;" onclick="treatHeroInClinic(${idx}, 'injuries')" ${state.gold < 15 * injCount || h.status !== 'ready' ? 'disabled' : ''}>${uiIcon('potion_green', 'ui-icon-xs')} Травмы [${15 * injCount}гр | ${1 + injCount}ц]</button>`
                 : '';
 
             return `
@@ -93,7 +416,7 @@ export class GuildNpcModalView {
                         <h3>Палаты врачебные — Сестра Берта (Казна: ${state.gold} гр.)</h3>
                         <div class="npc-quote-speech">«Перевязка HP — 10 гр. (1 цикл). Снятие травм — 15 гр. за травму (1 + травмы циклов).»</div>
                     </div>
-                    <button style="max-width:36px; padding:4px;" onclick="closeSquadModal()">✕</button>
+                    <button class="quest-close-btn" onclick="closeSquadModal()">${uiIcon('close', 'ui-icon-xs')}</button>
                 </div>
                 <div class="${useGrid}">${heroCards}</div>
             </div>
@@ -144,7 +467,7 @@ export class GuildNpcModalView {
                 const unlockedTalents = m.talents.filter(t => t.unlocked).map(t => t.name);
                 const passiveInfo = m.getPassiveInfo();
                 const featParts: string[] = [];
-                if (passiveInfo && passiveInfo.title) featParts.push(passiveInfo.title);
+                if (passiveInfo && passiveInfo.title) featParts.push(`${uiIcon(passiveInfo.icon, 'ui-icon-xs')} ${passiveInfo.title}`);
                 if (unlockedTalents.length > 0) featParts.push(`Таланты: ${unlockedTalents.join(', ')}`);
 
                 columnsHtml.push(`
@@ -192,7 +515,7 @@ export class GuildNpcModalView {
                         <div class="mercs-header-title">Стол наемников (Казна: ${state.gold} гр.)</div>
                         <div class="mercs-header-joke">«${jokeText}»</div>
                     </div>
-                    <button class="quest-close-btn" onclick="closeSquadModal()">✕</button>
+                    <button class="quest-close-btn" onclick="closeSquadModal()">${uiIcon('close', 'ui-icon-xs')}</button>
                 </div>
 
                 <div class="mercs-columns-grid">
@@ -231,7 +554,7 @@ export class GuildNpcModalView {
                     const hasWounds = assignedHero.injuries.length > 0;
                     const isLowHp = assignedHero.hp < assignedHero.maxHp;
                     const subParts: string[] = [];
-                    if (hasWounds) subParts.push(`🩸 ${assignedHero.injuries.join(', ')}`);
+                    if (hasWounds) subParts.push(`${uiIcon('blood', 'ui-icon-xs')} ${assignedHero.injuries.join(', ')}`);
                     if (isLowHp) subParts.push(`ХП ${assignedHero.hp}/${assignedHero.maxHp}`);
                     const line2Html = subParts.length > 0
                         ? `<div class="concept-reserve-line2">\\ ${subParts.join(' • ')}</div>`
@@ -262,18 +585,18 @@ export class GuildNpcModalView {
 
             const canDispatch = assignedIds.length === c.needHeroes;
             const dispatchBtnHtml = canDispatch
-                ? `<button class="verbirz-dispatch-btn" onclick="dispatchHeroesToWar(${campIdx})">🚩 Отправить (${assignedIds.length}/${c.needHeroes})</button>`
+                ? `<button class="verbirz-dispatch-btn" onclick="dispatchHeroesToWar(${campIdx})">${uiIcon('flag', 'ui-icon-xs')} Отправить (${assignedIds.length}/${c.needHeroes})</button>`
                 : '';
 
             const activeWarHtml = activeWarHeroes.length > 0
-                ? `<div class="verbirz-active-war">⚔️ В походе: ${activeWarHeroes.map(h => `${h.name} (${h.timer} ц.)`).join(', ')}</div>`
+                ? `<div class="verbirz-active-war">${uiIcon('crossed_swords', 'ui-icon-xs')} В походе: ${activeWarHeroes.map(h => `${h.name} (${h.timer} ц.)`).join(', ')}</div>`
                 : '';
 
             return `
                 <div class="verbirz-column-card mastery-${colColor}">
                     <div class="verbirz-circle-badge mastery-${colColor}">
                         <div class="verbirz-circle-title">${c.name}</div>
-                        <div class="verbirz-circle-sub">⏳ ${c.cycles} ц.</div>
+                        <div class="verbirz-circle-sub">${uiIcon('hourglass', 'ui-icon-xs')} ${c.cycles} ц.</div>
                     </div>
 
                     <div class="verbirz-info-frame">
@@ -310,7 +633,7 @@ export class GuildNpcModalView {
                 const isLowHp = h.hp < h.maxHp;
 
                 const parts: string[] = [];
-                if (hasWounds) parts.push(`🩸 ${h.injuries.join(', ')}`);
+                if (hasWounds) parts.push(`${uiIcon('blood', 'ui-icon-xs')} ${h.injuries.join(', ')}`);
                 if (h.status !== 'ready') {
                     parts.push(h.status === 'war' ? `Война (${h.timer}ц)` : `Палаты (${h.timer}ц)`);
                 }
@@ -346,7 +669,7 @@ export class GuildNpcModalView {
                         <h3>Королевский Вербовщик (Вербирж)</h3>
                         <div class="npc-quote-speech">«Выбирай кампанию, оценивай риск и отправляй бойцов за королевским серебром!»</div>
                     </div>
-                    <button class="quest-close-btn" onclick="closeSquadModal()">✕</button>
+                    <button class="quest-close-btn" onclick="closeSquadModal()">${uiIcon('close', 'ui-icon-xs')}</button>
                 </div>
 
                 <div class="verbirz-campaigns-grid">
@@ -524,14 +847,16 @@ export class GuildNpcModalView {
             return `
                 <div class="quest-column-card">
                     <div class="quest-circle-badge quest-diff-${q.difficulty}">
-                        <div class="quest-circle-diff">${q.diffLabel}</div>
                         <div class="quest-circle-title">${q.title}</div>
-                        <div class="quest-circle-img">${q.icon}</div>
+                        <div class="quest-circle-img">${uiIcon(q.icon, 'ui-icon-xl')}</div>
                     </div>
 
                     <div class="quest-bullet-list">
                         <div class="quest-bullet-item">
-                            <b>- Награда по деньгам:</b> <span class="hl-gold">${q.goldMin}–${q.goldMax} грошей</span>
+                            <b>- Награда по деньгам:</b> <span class="hl-gold">${q.goldReward} грошей</span>
+                        </div>
+                        <div class="quest-bullet-item">
+                            <b>- Опыт за выполнение:</b> <span class="hl-green">+${q.expReward} опыта каждому</span>
                         </div>
                         <div class="quest-bullet-item">
                             <b>- Риски для отряда:</b> <span class="${riskInfo.riskClass}">${riskInfo.riskLabel}</span>
@@ -548,7 +873,7 @@ export class GuildNpcModalView {
                     </div>
 
                     <button class="quest-take-btn" onclick="closeSquadModal(); startQuest('${q.id}');" ${readySquadHeroes.length === 0 ? 'disabled' : ''}>
-                        ⚔️ ВЫБРАТЬ ЗАДАНИЕ
+                        ${uiIcon('crossed_swords', 'ui-icon-xs')} ВЫБРАТЬ ЗАДАНИЕ
                     </button>
                 </div>
             `;
@@ -565,8 +890,8 @@ export class GuildNpcModalView {
                         <div class="quest-board-sub-squad">Текущий отряд (${readySquadHeroes.length}/${state.squadMax}): <b>${squadNames}</b></div>
                     </div>
                     <div class="quest-board-actions">
-                        <button class="quest-squad-btn" onclick="openSquadModal()">🛡️ Меню отряда</button>
-                        <button class="quest-close-btn" onclick="closeSquadModal()">✕</button>
+                        <button class="quest-squad-btn" onclick="openSquadModal()">${uiIcon('shield_cross', 'ui-icon-xs')} Меню отряда</button>
+                        <button class="quest-close-btn" onclick="closeSquadModal()">${uiIcon('close', 'ui-icon-xs')}</button>
                     </div>
                 </div>
 
@@ -599,8 +924,8 @@ export class GuildNpcModalView {
             const hasInjuries = h.injuries.length > 0;
 
             const woundStatusHtml = hasInjuries
-                ? `<span class="hl-red">⚠️ Травма: ${h.injuries.join(', ')}${newInjuries.length > 0 ? ' (новая!)' : ''}</span>`
-                : `<span class="hl-green">✓ Здоров (HP восполнено)</span>`;
+                ? `<span class="hl-red">${uiIcon('alert', 'ui-icon-xs')} Травма: ${h.injuries.join(', ')}${newInjuries.length > 0 ? ' (новая!)' : ''}</span>`
+                : `<span class="hl-green">${uiIcon('check', 'ui-icon-xs')} Здоров (HP восполнено)</span>`;
 
             return `
                 <div class="hero-card-row" style="margin-bottom:${useGrid ? '0' : '3px'}; border-color:${hasInjuries ? '#a63a3a' : '#6b4c30'};">
@@ -633,12 +958,12 @@ export class GuildNpcModalView {
         if (rep.lootItems.length > 0) {
             const lootChips = rep.lootItems.map((itemLabel, idx) => {
                 const isSelected = rep.selectedLootIndex === idx;
-                return `<b class="hl-gold loot-trophy-item ${isSelected ? 'active' : ''}" onclick="inspectBattleLoot(${idx})" title="Нажмите, чтобы посмотреть характеристики трофея">🔍 ${itemLabel}</b>`;
+                return `<b class="hl-gold loot-trophy-item ${isSelected ? 'active' : ''}" onclick="inspectBattleLoot(${idx})" title="Нажмите, чтобы посмотреть характеристики трофея">${uiIcon('search', 'ui-icon-xs')} ${itemLabel}</b>`;
             }).join(' ');
-            extras.push(`🎁 Трофеи (нажми для осмотра): ${lootChips}`);
+            extras.push(`${uiIcon('pouch', 'ui-icon-xs')} Трофеи (нажми для осмотра): ${lootChips}`);
         }
         if (rep.levelUps.length > 0) {
-            extras.push(`⬆️ Уровень: <b class="hl-green">${rep.levelUps.join(', ')}</b>`);
+            extras.push(`${uiIcon('arrow', 'ui-icon-xs')} Очки талантов: <b class="hl-green">${rep.levelUps.join(', ')}</b>`);
         }
 
         const inspectedItem = (rep.selectedLootIndex !== null && resolvedLootObjects[rep.selectedLootIndex])
@@ -657,7 +982,7 @@ export class GuildNpcModalView {
                             <div class="rpg-card-top">
                                 <div class="rpg-card-icon-box">
                                     <span class="rpg-card-tier">T${inspectedItem.getTier()}</span>
-                                    <span class="rpg-card-emoji">${inspectedItem.getIcon()}</span>
+                                    <span class="rpg-card-emoji">${uiIcon(inspectedItem.getIcon(), 'ui-icon-lg')}</span>
                                     <span class="rpg-card-stars">${'★'.repeat(inspectedItem.getTier())}</span>
                                 </div>
                                 <div class="rpg-card-meta">
@@ -684,8 +1009,8 @@ export class GuildNpcModalView {
         ` : '';
 
         const headerTitle = isVictory
-            ? '🏆 Итоги похода — Возвращение в таверну'
-            : '💀 Отступление в таверну — Итоги боя';
+            ? `${uiIcon('laurel', 'ui-icon-sm')} Итоги похода — Возвращение в таверну`
+            : `${uiIcon('skull', 'ui-icon-sm')} Отступление в таверну — Итоги боя`;
         const headerSpeech = isVictory
             ? '«С возвращением, панове! Несите пенного — подсчитаем златые, сраженных врагов и перевяжем раненых!»'
             : '«Живы — и то слава Богу! Садитесь к очагу, подсчитаем потери и отправим раненых к сестре Берте...»';
@@ -698,32 +1023,197 @@ export class GuildNpcModalView {
                         <h3>${headerTitle}</h3>
                         <div class="npc-quote-speech">${headerSpeech}</div>
                     </div>
-                    <button style="max-width:36px; padding:4px;" onclick="closeSquadModal()">✕</button>
+                    <button class="quest-close-btn" onclick="closeSquadModal()">${uiIcon('close', 'ui-icon-xs')}</button>
                 </div>
 
                 <div class="campaign-card selected" style="margin-bottom:5px;">
                     <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px; font-size:11px;">
-                        <span>🪙 Заработано златых: <b class="hl-gold">+${rep.goldEarned} гр.</b> (Казна: ${state.gold})</span>
-                        <span>⚔️ Сражено противников: <b class="hl-green">${rep.enemiesKilled}</b></span>
-                        <span>🩹 Ранено: <b class="${woundedHeroes.length > 0 ? 'hl-red' : 'hl-green'}">${woundedHeroes.length} из ${participants.length}</b></span>
+                        <span>${uiIcon('coins_stack', 'ui-icon-xs')} Заработано златых: <b class="hl-gold">+${rep.goldEarned} гр.</b> (Казна: ${state.gold})</span>
+                        <span>${uiIcon('crossed_swords', 'ui-icon-xs')} Сражено противников: <b class="hl-green">${rep.enemiesKilled}</b></span>
+                        <span>${uiIcon('heart_heal', 'ui-icon-xs')} Ранено: <b class="${woundedHeroes.length > 0 ? 'hl-red' : 'hl-green'}">${woundedHeroes.length} из ${participants.length}</b></span>
                     </div>
                     ${extras.length > 0 ? `<div style="font-size:11px; margin-top:5px; padding-top:5px; border-top:1px dashed #5c4028; color:#dec8ad;">${extras.join(' &nbsp;|&nbsp; ')}</div>` : ''}
                     ${lootInspectHtml}
                 </div>
 
                 <div class="squad-section-title">
-                    <span>🛡️ СОСТОЯНИЕ ОТРЯДА (КТО РАНЕН):</span>
+                    <span>${uiIcon('shield_cross', 'ui-icon-xs')} СОСТОЯНИЕ ОТРЯДА (КТО РАНЕН):</span>
                 </div>
                 <div class="${useGrid}" style="margin-bottom:6px;">
                     ${participantRows}
                 </div>
 
                 <div class="btn-row" style="margin-top:auto;">
-                    ${woundedHeroes.length > 0 ? `<button class="btn-sec" onclick="openClinicDialog()">🏥 В Палаты врачебные (Лечить раненых)</button>` : ''}
-                    <button onclick="closeSquadModal()">🍺 За стол в таверну (Закрыть)</button>
+                    ${woundedHeroes.length > 0 ? `<button class="btn-sec" onclick="openClinicDialog()">${uiIcon('heal_cross', 'ui-icon-xs')} В Палаты врачебные (Лечить раненых)</button>` : ''}
+                    <button onclick="closeSquadModal()">${uiIcon('beer', 'ui-icon-xs')} За стол в таверну (Закрыть)</button>
                 </div>
             </div>
         `;
         CanvasRendererView.drawNpcAvatar('host');
+    }
+
+    public renderSmithDialog(state: GameStateModel): void {
+        this.openOverlay();
+        const forgeTier = GameDataCatalog.getForgeTier(state.tavernUpgrades);
+        const craftBonus = GameDataCatalog.getForgeCraftBonus(state.tavernUpgrades);
+        const activeFilter = state.smithMenuState.filter || 'all';
+        const metalKeys: MetalType[] = ['iron', 'bronze', 'steel', 'damask'];
+
+        const metalStockHtml = metalKeys.map(m => {
+            const meta = GameDataCatalog.METAL_META[m];
+            const amt = state.metals[m] || 0;
+            return `
+                <div class="smith-metal-pill metal-${m}" title="${meta.desc}">
+                    <span class="smith-metal-icon">${uiIcon(meta.icon, 'ui-icon-xs')}</span>
+                    <span class="smith-metal-name">${meta.name}:</span>
+                    <b class="smith-metal-val">${amt}</b>
+                </div>
+            `;
+        }).join('');
+
+        const smeltListHtml = state.spareEquip.length === 0
+            ? `
+                <div class="smith-empty-state">
+                    ${uiIcon('pouch', 'ui-icon-lg')}
+                    <div>На складе отряда нет лишней амуниции для переплавки.</div>
+                    <div class="smith-empty-sub">Принесите трофеи из походов или снимите старое снаряжение с бойца в меню ОТРЯД.</div>
+                </div>
+            `
+            : state.spareEquip.map((item, idx) => {
+                const yieldMap = GameDataCatalog.getSmeltYield(item, forgeTier);
+                const statsParts: string[] = [];
+                if (item.atk > 0) statsParts.push(`+${item.atk} Ур`);
+                if (item.armor > 0) statsParts.push(`+${item.armor} Бр`);
+                if (item.block > 0) statsParts.push(`+${item.block}% Блок`);
+
+                const yieldHtml = metalKeys
+                    .filter(m => (yieldMap[m] || 0) > 0)
+                    .map(m => {
+                        const meta = GameDataCatalog.METAL_META[m];
+                        return `<span class="smith-yield-tag metal-${m}">${uiIcon(meta.icon, 'ui-icon-xs')} +${yieldMap[m]} ${meta.short}</span>`;
+                    }).join('');
+
+                return `
+                    <div class="smith-item-card ${item.getRarityClass()}">
+                        <div class="smith-item-main">
+                            <div class="smith-item-icon">${uiIcon(item.getIcon(), 'ui-icon-md')}</div>
+                            <div class="smith-item-info">
+                                <div class="smith-item-title">${item.name}</div>
+                                <div class="smith-item-sub">${item.getSlotCleanName()} • ${statsParts.join(', ') || 'Без бонусов'}</div>
+                                <div class="smith-yield-row">${yieldHtml}</div>
+                            </div>
+                        </div>
+                        <button class="smith-action-btn smelt-btn" onclick="smeltSpareItem(${idx})">
+                            ${uiIcon('fire', 'ui-icon-xs')} Расплавить
+                        </button>
+                    </div>
+                `;
+            }).join('');
+
+        const recipes = GameDataCatalog.createSmithingRecipes().filter(r =>
+            activeFilter === 'all' ? true : r.slot === activeFilter
+        );
+
+        const slotLabels: Record<'weapon' | 'armor' | 'trinket', string> = {
+            weapon: 'Оружие',
+            armor: 'Броня',
+            trinket: 'Талисман'
+        };
+
+        const recipesHtml = recipes.map(rec => {
+            const bonusAtk = rec.slot === 'weapon' ? craftBonus.atk : 0;
+            const bonusArmor = rec.slot === 'armor' ? craftBonus.armor : 0;
+            const bonusBlock = rec.slot === 'trinket' ? craftBonus.block : 0;
+
+            const totalAtk = rec.atk + bonusAtk;
+            const totalArmor = rec.armor + bonusArmor;
+            const totalBlock = rec.block + bonusBlock;
+
+            const statChips: string[] = [];
+            if (totalAtk > 0) statChips.push(`+${totalAtk} Ур${bonusAtk > 0 ? ` (+${bonusAtk})` : ''}`);
+            if (totalArmor > 0) statChips.push(`+${totalArmor} Бр${bonusArmor > 0 ? ` (+${bonusArmor})` : ''}`);
+            if (totalBlock > 0) statChips.push(`+${totalBlock}% Блок${bonusBlock > 0 ? ` (+${bonusBlock}%)` : ''}`);
+
+            let canCraft = true;
+            const costTagsHtml = metalKeys
+                .filter(m => (rec.cost[m] || 0) > 0)
+                .map(m => {
+                    const need = rec.cost[m] || 0;
+                    const have = state.metals[m] || 0;
+                    const ok = have >= need;
+                    if (!ok) canCraft = false;
+                    const meta = GameDataCatalog.METAL_META[m];
+                    return `<span class="smith-cost-tag ${ok ? 'cost-ok' : 'cost-low'}">${uiIcon(meta.icon, 'ui-icon-xs')} ${meta.name}: ${have}/${need}</span>`;
+                }).join('');
+
+            return `
+                <div class="smith-recipe-card">
+                    <div class="smith-recipe-top">
+                        <div class="smith-item-icon">${uiIcon(rec.icon, 'ui-icon-md')}</div>
+                        <div class="smith-recipe-info">
+                            <div class="smith-item-title">${rec.name} <span class="smith-slot-label">• ${slotLabels[rec.slot]}</span></div>
+                            <div class="smith-recipe-stats">${statChips.join(' &nbsp;|&nbsp; ')}</div>
+                            <div class="smith-recipe-desc">${rec.desc}</div>
+                        </div>
+                        <button class="smith-action-btn craft-btn" onclick="craftSmithRecipe('${rec.id}')" ${!canCraft ? 'disabled' : ''}>
+                            ${uiIcon('smith_hammer', 'ui-icon-xs')} Выковать
+                        </button>
+                    </div>
+                    <div class="smith-cost-row">
+                        <span class="smith-cost-label">Металл:</span> ${costTagsHtml}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        const upgradeBadgeHtml = forgeTier > 0
+            ? `<div class="smith-status-badge active">${uiIcon('check', 'ui-icon-xs')} Кузница (Ступ. ${forgeTier}): +${craftBonus.atk} к ковке${forgeTier >= 2 ? ', +плавка' : ''}</div>`
+            : `<div class="smith-status-badge test">${uiIcon('forge', 'ui-icon-xs')} Полевой горн (Ветка «IV. Кузница» у Хозяина даст бонусы)</div>`;
+
+        this.modalContent.innerHTML = `
+            <div class="npc-dialog-box smith-modal-wrapper">
+                <div class="npc-header-flex">
+                    <canvas class="npc-avatar-canvas" id="npc-avatar" width="72" height="72"></canvas>
+                    <div class="npc-quote-block">
+                        <h3>Кузнец Матей — Кузница гильдии</h3>
+                        <div class="npc-quote-speech">${state.smithMenuState.speech}</div>
+                    </div>
+                    <button class="quest-close-btn" onclick="closeSquadModal()">${uiIcon('close', 'ui-icon-xs')}</button>
+                </div>
+
+                <div class="smith-top-bar">
+                    <div class="smith-metals-row">${metalStockHtml}</div>
+                    ${upgradeBadgeHtml}
+                </div>
+
+                <div class="smith-grid">
+                    <div class="smith-col">
+                        <div class="smith-col-header">
+                            <span>${uiIcon('fire', 'ui-icon-sm')} ПЛАВКА СНАРЯЖЕНИЯ</span>
+                            <span class="smith-col-count">На складе: ${state.spareEquip.length}</span>
+                        </div>
+                        <div class="smith-scroll-list">
+                            ${smeltListHtml}
+                        </div>
+                    </div>
+
+                    <div class="smith-col">
+                        <div class="smith-col-header">
+                            <span>${uiIcon('anvil', 'ui-icon-sm')} КОВКА ПО РЕЦЕПТАМ</span>
+                            <div class="smith-filter-row">
+                                <button class="smith-filter-btn ${activeFilter === 'all' ? 'active' : ''}" onclick="setSmithRecipeFilter('all')">Все</button>
+                                <button class="smith-filter-btn ${activeFilter === 'weapon' ? 'active' : ''}" onclick="setSmithRecipeFilter('weapon')">Оружие</button>
+                                <button class="smith-filter-btn ${activeFilter === 'armor' ? 'active' : ''}" onclick="setSmithRecipeFilter('armor')">Броня</button>
+                                <button class="smith-filter-btn ${activeFilter === 'trinket' ? 'active' : ''}" onclick="setSmithRecipeFilter('trinket')">Талисман</button>
+                            </div>
+                        </div>
+                        <div class="smith-scroll-list">
+                            ${recipesHtml}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        CanvasRendererView.drawNpcAvatar('smith');
     }
 }

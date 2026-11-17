@@ -2,7 +2,7 @@ import { EquipmentItem } from './EquipmentItem';
 import { HeroModel, WarContractData } from './HeroModel';
 import { EnemyModel } from './EnemyModel';
 import { UnitBase } from './UnitBase';
-import { GameDataCatalog } from './GameDataCatalog';
+import { GameDataCatalog, HostShopArmorItem, TavernUpgradeNode, HostConsumableItem } from './GameDataCatalog';
 import { QuestFactory } from './QuestFactory';
 
 export type SceneType = 'guild' | 'map' | 'combat';
@@ -35,16 +35,18 @@ export interface HotspotPlacement {
     srcH: number;
 }
 
+export type MetalType = 'iron' | 'bronze' | 'steel' | 'damask';
+
 export interface TavernBgPreset {
     key: TavernBgPresetKey;
     url: string;
     width: number;
     height: number;
-    placements: Record<'clinic' | 'quests' | 'host' | 'mercs' | 'verbirz', HotspotPlacement>;
+    placements: Record<'clinic' | 'quests' | 'host' | 'mercs' | 'verbirz' | 'smith', HotspotPlacement>;
 }
 
 export interface GuildHotspot {
-    id: 'clinic' | 'quests' | 'host' | 'mercs' | 'verbirz';
+    id: 'clinic' | 'quests' | 'host' | 'mercs' | 'verbirz' | 'smith';
     x: number;
     y: number;
     w: number;
@@ -93,6 +95,8 @@ export interface DailyQuestData {
     difficulty: DailyQuestDifficulty;
     diffLabel: string;
     powerReq: number;
+    goldReward: number;
+    expReward: number;
     goldMin: number;
     goldMax: number;
     condition: string;
@@ -137,6 +141,7 @@ export class GameStateModel {
 
     public gold: number = 60;
     public beer: number = 3;
+    public medkits: number = 1;
     public pots: number = 1;
     public herbs: number = 0;
     public cycle: number = 1;
@@ -150,7 +155,33 @@ export class GameStateModel {
     public dailyQuests: DailyQuestData[] = [];
     public activeQuest: DailyQuestData | null = null;
 
-    public mapState = { dir: 'to_quest' as 'to_quest' | 'to_guild', progress: 0, ambushTriggered: false };
+    public hostArmorShop: HostShopArmorItem[] = [];
+    public tavernUpgrades: TavernUpgradeNode[] = [];
+    public hostConsumables: HostConsumableItem[] = [];
+    public metals: Record<MetalType, number> = {
+        iron: 4,
+        bronze: 2,
+        steel: 1,
+        damask: 0
+    };
+    public smithMenuState = {
+        filter: 'all' as 'all' | 'weapon' | 'armor' | 'trinket',
+        speech: '«Горн жарко пышет, наковальня ждёт! Неси лишний хлам в переплавку — скуём добрую сталь!»'
+    };
+    public hostMenuState = {
+        activeTab: 'hub' as 'hub' | 'upgrades' | 'consumables' | 'armor',
+        selectedArmorId: 'sh_1',
+        selectedUpgradeId: 'upg_b1_t1',
+        selectedConsumableId: 'beer' as 'beer' | 'medkit' | 'pot',
+        speech: ''
+    };
+
+    public mapState = {
+        dir: 'to_quest' as 'to_quest' | 'to_guild',
+        progress: 0,
+        ambushTriggered: false,
+        encounterPending: null as 'ambush' | 'quest' | 'guild' | null
+    };
     public combat = new CombatStateModel();
     public expeditionReport: ExpeditionReportData = {
         hasReport: false,
@@ -188,9 +219,13 @@ export class GameStateModel {
 
     constructor() {
         this.currentMercJoke = this.mercJokes[0];
+        this.hostMenuState.speech = this.tavernTales[3] || this.tavernTales[0];
         this.spareEquip = GameDataCatalog.createInitialSpareEquip();
         this.party = GameDataCatalog.createInitialParty();
         this.mercsForHire = GameDataCatalog.createInitialMercs();
+        this.hostArmorShop = GameDataCatalog.createHostArmorCatalog();
+        this.tavernUpgrades = GameDataCatalog.createTavernUpgrades();
+        this.hostConsumables = GameDataCatalog.createHostConsumables();
         this.generateDailyQuests();
     }
 

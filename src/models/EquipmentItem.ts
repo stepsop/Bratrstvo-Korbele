@@ -31,9 +31,9 @@ export class EquipmentItem {
     }
 
     public getSlotTitle(): string {
-        if (this.slot === 'weapon') return '🗡️ Оружие';
-        if (this.slot === 'armor') return '🛡️ Доспех';
-        return '💍 Талисман';
+        if (this.slot === 'weapon') return 'Оружие';
+        if (this.slot === 'armor') return 'Доспех';
+        return 'Талисман';
     }
 
     public getSlotCleanName(): string {
@@ -43,9 +43,9 @@ export class EquipmentItem {
     }
 
     public getIcon(): string {
-        if (this.slot === 'weapon') return '🗡️';
-        if (this.slot === 'armor') return '🛡️';
-        return '💍';
+        if (this.slot === 'weapon') return 'sword';
+        if (this.slot === 'armor') return 'armor';
+        return 'fleur';
     }
 
     public getTier(): number {

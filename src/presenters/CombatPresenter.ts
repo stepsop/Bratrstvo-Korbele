@@ -47,31 +47,45 @@ export class CombatPresenter {
 
         this.state.initExpeditionReport();
         this.state.scene = 'map';
-        this.state.mapState = { dir: 'to_quest', progress: 0, ambushTriggered: false };
+        this.state.mapState = { dir: 'to_quest', progress: 0, ambushTriggered: false, encounterPending: null };
         this.topBarView.updateSceneLayout(this.state);
     }
 
     public updateMapLogic(): void {
         const ms = this.state.mapState;
-        ms.progress += 0.008;
+        if (ms.encounterPending !== null) return;
 
-        if (this.state.questsDone >= 1 && !ms.ambushTriggered && Math.abs(ms.progress - 0.5) < 0.015) {
+        ms.progress += ms.dir === 'to_quest' ? 0.0022 : 0.0032;
+
+        if (ms.dir === 'to_quest' && this.state.questsDone >= 1 && !ms.ambushTriggered && ms.progress >= 0.48) {
             ms.ambushTriggered = true;
             if (Math.random() < 0.5) {
-                this.hudView.appendLog(`<span class="hl-red">ЗАСАДА НА ТРАКТЕ!</span> На обочине притаились мародеры!`);
-                this.startCombat(true);
+                ms.encounterPending = 'ambush';
+                this.topBarView.updateMapActionOverlay(this.state);
                 return;
             }
         }
 
         if (ms.progress >= 1) {
             ms.progress = 1;
-            if (ms.dir === 'to_quest') {
-                this.startCombat(false);
-            } else {
-                this.guildPresenter.advanceCycle(1);
-                this.guildPresenter.enterGuild(true);
-            }
+            ms.encounterPending = ms.dir === 'to_quest' ? 'quest' : 'guild';
+            this.topBarView.updateMapActionOverlay(this.state);
+        }
+    }
+
+    public confirmMapEncounter(): void {
+        const ms = this.state.mapState;
+        const pending = ms.encounterPending;
+        if (this.state.scene !== 'map' || !pending) return;
+
+        ms.encounterPending = null;
+        if (pending === 'ambush') {
+            this.startCombat(true);
+        } else if (pending === 'quest') {
+            this.startCombat(false);
+        } else if (pending === 'guild') {
+            this.guildPresenter.advanceCycle(1);
+            this.guildPresenter.enterGuild(true);
         }
     }
 
@@ -79,6 +93,9 @@ export class CombatPresenter {
         this.state.scene = 'combat';
         this.topBarView.updateSceneLayout(this.state);
         this.hudView.clearLog();
+        if (isAmbush) {
+            this.hudView.appendLog(`<span class="hl-red">ЗАСАДА НА ТРАКТЕ!</span> На обочине притаились мародеры!`, 'enemy');
+        }
 
         const combat = this.state.combat;
         combat.active = true;
@@ -128,7 +145,7 @@ export class CombatPresenter {
         combat.turnIndex = 0;
 
         const orderStr = combat.turnOrder.map(u => `${u.name}(${u.initRoll})`).join(' → ');
-        this.hudView.appendLog(`<span class="hl-gold">БРОСОК ИНИЦИАТИВЫ:</span> ${orderStr}`);
+        this.hudView.appendLog(`<span class="hl-gold">БРОСОК ИНИЦИАТИВЫ:</span> ${orderStr}`, 'system');
         this.hudView.renderCombatControls(this.state);
     }
 
@@ -154,7 +171,7 @@ export class CombatPresenter {
             this.state.addFloatingText("ПСЯ КРЕВ! +10 ЩИТ", h.x || 120, (h.y || 120) - 22, '#ffd700');
         });
 
-        this.hudView.appendLog(`<span class="hl-gold">🔥 ПСЯ КРЕВ!</span> Вы громогласно ободряете поляков! Все герои получают <b>+10 временного здоровья</b> и <b>+2 к урону</b> на 6 ходов!`);
+        this.hudView.appendLog(`<span class="hl-gold">🔥 ПСЯ КРЕВ!</span> Вы громогласно ободряете поляков! Все герои получают <b>+10 временного здоровья</b> и <b>+2 к урону</b> на 6 ходов!`, 'ally');
         this.hudView.renderCombatControls(this.state);
     }
 
@@ -198,7 +215,7 @@ export class CombatPresenter {
         const reason = isCriticalWound ? 'критическое ранение' : '≤30% HP';
         this.state.addParticles(hero.x || 120, hero.y || 120, '#66ff66', 14);
         this.state.addFloatingText(`+${heal} АВТО-ПИВО!`, hero.x || 120, (hero.y || 120) - 24, '#66ff66');
-        this.hudView.appendLog(`<span class="hl-green">🍺 АВТО-ПИВО (${reason}):</span> <b>${hero.name}</b> осушает кружку пива и лечит <b>${heal} HP</b> (1d10)! [Осталось: ${this.state.beer}]`);
+        this.hudView.appendLog(`<span class="hl-green">🍺 АВТО-ПИВО (${reason}):</span> <b>${hero.name}</b> осушает кружку пива и лечит <b>${heal} HP</b> (1d10)! [Осталось: ${this.state.beer}]`, 'ally');
         this.topBarView.renderStats(this.state);
         this.hudView.renderCombatControls(this.state);
     }
@@ -216,7 +233,7 @@ export class CombatPresenter {
         this.state.pots--;
         const dmg = this.roll(20);
         this.state.shake = 14;
-        this.hudView.appendLog(`<span class="hl-gold">ШТУРМОВОЙ ГОРШОК!</span> Взрыв порохового горшка наносит <b>${dmg} урона</b> (1d20) всем врагам!`);
+        this.hudView.appendLog(`<span class="hl-gold">ШТУРМОВОЙ ГОРШОК!</span> Взрыв порохового горшка наносит <b>${dmg} урона</b> (1d20) всем врагам!`, 'ally');
         this.state.combat.enemies.forEach(e => {
             if (e.hp > 0) {
                 const prevHp = e.hp;
@@ -259,14 +276,14 @@ export class CombatPresenter {
         if (attacker && attacker.id === 'pan') {
             if (Math.random() < 0.5) {
                 this.state.addFloatingText("ИК! 0 УРОНА", attacker.x, attacker.y - 20, '#ffd700');
-                this.hudView.appendLog(`<i>Непросыхаемый алкаш (50%):</i> Пан Вшивец мажет спьяну! Исходящий урон = <b>0</b>.`);
+                this.hudView.appendLog(`<i>Непросыхаемый алкаш (50%):</i> Пан Вшивец мажет спьяну! Исходящий урон = <b>0</b>.`, 'ally');
                 return 0;
             }
         }
         if (defender && defender.id === 'pan') {
             if (Math.random() < 0.5) {
                 this.state.addFloatingText("ПЬЯНЫЙ УВОРОТ! 0", defender.x, defender.y - 20, '#66ff66');
-                this.hudView.appendLog(`<i>Непросыхаемый алкаш (50%):</i> Пан Вшивец покачнулся, и удар прошел мимо! Входящий урон = <b>0</b>!`);
+                this.hudView.appendLog(`<i>Непросыхаемый алкаш (50%):</i> Пан Вшивец покачнулся, и удар прошел мимо! Входящий урон = <b>0</b>!`, 'ally');
                 return 0;
             }
         }
@@ -308,7 +325,7 @@ export class CombatPresenter {
             combat.psaKrevBuffTurns--;
             if (combat.psaKrevBuffTurns === 0) {
                 this.state.party.forEach(h => { h.tempHp = 0; });
-                this.hudView.appendLog(`Действие боевого клича <b>«Пся крев!»</b> закончилось.`);
+                this.hudView.appendLog(`Действие боевого клича <b>«Пся крев!»</b> закончилось.`, 'system');
             }
         }
 
@@ -324,13 +341,13 @@ export class CombatPresenter {
         if (tadeusz && Math.random() < 0.10) {
             this.state.herbs++;
             this.state.addFloatingText("+1 ТРАВА", tadeusz.x, tadeusz.y - 22, '#66ff66');
-            this.hudView.appendLog(`<span class="hl-green">Знаток трав (10%):</span> Брат Тадеуш заметил целебную траву (${this.state.herbs}/5)!`);
+            this.hudView.appendLog(`<span class="hl-green">Знаток трав (10%):</span> Брат Тадеуш заметил целебную траву (${this.state.herbs}/5)!`, 'ally');
             if (this.state.herbs >= 5) {
                 this.state.herbs -= 5;
                 const brewed = this.roll(4);
                 this.state.beer += brewed;
                 this.state.addFloatingText(`+${brewed} ПИВА!`, tadeusz.x, tadeusz.y - 34, '#ffd700');
-                this.hudView.appendLog(`<span class="hl-gold">ПИВОВАРНЯ СВЯТОШИ!</span> Из 5 трав Брат Тадеуш сварил <b>${brewed} бут. пива</b> (1d4)!`);
+                this.hudView.appendLog(`<span class="hl-gold">ПИВОВАРНЯ СВЯТОШИ!</span> Из 5 трав Брат Тадеуш сварил <b>${brewed} бут. пива</b> (1d4)!`, 'ally');
                 const criticallyLow = this.state.party
                     .filter(h => h.inSquad && h.status === 'ready' && h.hp > 0 && h.hp <= Math.ceil(h.maxHp * 0.30))
                     .sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
@@ -357,14 +374,14 @@ export class CombatPresenter {
                 if (randEnemy.hp <= 0) {
                     this.state.addParticles(randEnemy.x, randEnemy.y, '#aaa', 12);
                     this.state.addFloatingText(`В ТРУП! -${pDmg}`, randEnemy.x, randEnemy.y - 15, '#ccc');
-                    this.hudView.appendLog(`<span class="hl-blue">Внезапный Пистоль (20%):</span> Шимон стреляет из пистоля на ${pDmg} ур. прямо в труп (${randEnemy.name})!`);
+                    this.hudView.appendLog(`<span class="hl-blue">Внезапный Пистоль (20%):</span> Шимон стреляет из пистоля на ${pDmg} ур. прямо в труп (${randEnemy.name})!`, 'ally');
                 } else {
                     const prevHp = randEnemy.hp;
                     randEnemy.hp = Math.max(0, randEnemy.hp - pDmg);
                     randEnemy.flash = 8;
                     this.state.addParticles(randEnemy.x, randEnemy.y, '#ffcc00', 14);
                     this.state.addFloatingText(`ПИСТОЛЬ -${pDmg}!`, randEnemy.x, randEnemy.y - 18, '#ffd700');
-                    this.hudView.appendLog(`<span class="hl-blue">Внезапный Пистоль (20%):</span> Шимон палит из пистоля в ${randEnemy.name} на <b>${pDmg} урона</b>!`);
+                    this.hudView.appendLog(`<span class="hl-blue">Внезапный Пистоль (20%):</span> Шимон палит из пистоля в ${randEnemy.name} на <b>${pDmg} урона</b>!`, 'ally');
                     if (prevHp > 0 && randEnemy.hp === 0) {
                         this.recordEnemyKill(randEnemy, hero);
                     }
@@ -384,10 +401,10 @@ export class CombatPresenter {
                     const totalRoll = this.roll(10) + bonus;
                     if (hero.id === 'pan' && Math.random() < 0.5) {
                         this.state.addFloatingText("ИК! МИМО!", hero.x, hero.y - 20, '#ffd700');
-                        this.hudView.appendLog(`<b>${hero.name}</b> размахнулся <i>Атакой плашмя</i>, но спьяну промахнулся (0 урона)!`);
+                        this.hudView.appendLog(`<b>${hero.name}</b> размахнулся <i>Атакой плашмя</i>, но спьяну промахнулся (0 урона)!`, 'ally');
                     } else {
                         const perEnemy = Math.max(1, Math.floor(totalRoll / aliveEnemies.length));
-                        this.hudView.appendLog(`<b>${hero.name}</b> бьет <span class="hl-gold">«Атакой плашмя»</span> (${totalRoll} ур. в сумме) — по ${perEnemy} урона всем врагам!`);
+                        this.hudView.appendLog(`<b>${hero.name}</b> бьет <span class="hl-gold">«Атакой плашмя»</span> (${totalRoll} ур. в сумме) — по ${perEnemy} урона всем врагам!`, 'ally');
                         aliveEnemies.forEach(e => {
                             const prevHp = e.hp;
                             e.hp = Math.max(0, e.hp - perEnemy);
@@ -401,7 +418,7 @@ export class CombatPresenter {
                 } else {
                     hero.lastUsedSkill = 2;
                     const d = this.roll(4) + bonus;
-                    this.hudView.appendLog(`<b>${hero.name}</b> рубит <i>оружием</i> по ${target.name} (${d} ур.).`);
+                    this.hudView.appendLog(`<b>${hero.name}</b> рубит <i>оружием</i> по ${target.name} (${d} ур.).`, 'ally');
                     this.applyDamageToUnit(hero, target, d);
                 }
             } else if (hero.cls === 'Святоша') {
@@ -413,11 +430,11 @@ export class CombatPresenter {
                     const heal = this.roll(4);
                     ally.hp = Math.min(ally.maxHp, ally.hp + heal);
                     this.state.addFloatingText(`+${heal} HP`, ally.x, ally.y - 18, '#66ff66');
-                    this.hudView.appendLog(`<b>${hero.name}</b> использует <span class="hl-green">«Запить грехи»</span> и лечит ${ally.name} на <b>${heal} HP</b>!`);
+                    this.hudView.appendLog(`<b>${hero.name}</b> использует <span class="hl-green">«Запить грехи»</span> и лечит ${ally.name} на <b>${heal} HP</b>!`, 'ally');
                 } else {
                     hero.lastUsedSkill = 2;
                     const d = this.roll(4) + bonus;
-                    this.hudView.appendLog(`<b>${hero.name}</b> бьет <i>дубиной</i> ${target.name} на <b>${d} урона</b>.`);
+                    this.hudView.appendLog(`<b>${hero.name}</b> бьет <i>дубиной</i> ${target.name} на <b>${d} урона</b>.`, 'ally');
                     this.applyDamageToUnit(hero, target, d);
                 }
             } else if (hero.cls === 'Мушкетер') {
@@ -430,7 +447,7 @@ export class CombatPresenter {
 
                     if (!neighbor) {
                         this.applyDamageToUnit(hero, target, totalDmg);
-                        this.hudView.appendLog(`<b>${hero.name}</b> стреляет из <span class="hl-blue">Аркебузы</span> в ${target.name} на <b>${totalDmg} урона</b>!`);
+                        this.hudView.appendLog(`<b>${hero.name}</b> стреляет из <span class="hl-blue">Аркебузы</span> в ${target.name} на <b>${totalDmg} урона</b>!`, 'ally');
                     } else {
                         const half1 = Math.ceil(totalDmg / 2);
                         const half2 = Math.floor(totalDmg / 2);
@@ -440,12 +457,12 @@ export class CombatPresenter {
                         const overflow2 = Math.max(0, totalSecond - neighbor.hp);
                         this.applyDamageToUnit(hero, neighbor, totalSecond);
                         if (overflow2 > 0 && target.hp > 0) this.applyDamageToUnit(hero, target, overflow2);
-                        this.hudView.appendLog(`<b>${hero.name}</b> стреляет из <span class="hl-blue">Аркебузы</span> (${totalDmg} ур.) по ${target.name} и ${neighbor.name}!`);
+                        this.hudView.appendLog(`<b>${hero.name}</b> стреляет из <span class="hl-blue">Аркебузы</span> (${totalDmg} ур.) по ${target.name} и ${neighbor.name}!`, 'ally');
                     }
                 } else {
                     hero.lastUsedSkill = 2;
                     const d = this.roll(4) + bonus;
-                    this.hudView.appendLog(`<b>${hero.name}</b> пыряет <i>кортиком</i> ${target.name} на <b>${d} урона</b>.`);
+                    this.hudView.appendLog(`<b>${hero.name}</b> пыряет <i>кортиком</i> ${target.name} на <b>${d} урона</b>.`, 'ally');
                     this.applyDamageToUnit(hero, target, d);
                 }
             }
@@ -462,16 +479,16 @@ export class CombatPresenter {
                 this.state.shake = 8;
                 if (Math.random() * 100 < targetHero.blockChance) {
                     this.state.addFloatingText("БЛОК СУПЕР-УДАРА!", targetHero.x, targetHero.y - 22, '#66ccff');
-                    this.hudView.appendLog(`<span class="hl-blue">БЛОК!</span> ${enemy.name} наносит <b>СУПЕР-УДАР</b>, но ${targetHero.name} блокирует его (${targetHero.blockChance}%)!`);
+                    this.hudView.appendLog(`<span class="hl-blue">БЛОК!</span> <b>${enemy.name}</b> наносит <b>СУПЕР-УДАР</b>, но ${targetHero.name} блокирует его (${targetHero.blockChance}%)!`, 'enemy');
                 } else {
                     const finalDmg = Math.max(1, rawSuper - targetHero.armor);
-                    this.hudView.appendLog(`<span class="hl-red">СУПЕР-УДАР!</span> ${enemy.name} бьет цепом по ${targetHero.name} (${rawSuper} ур., поглощено броней: ${targetHero.armor})!`);
+                    this.hudView.appendLog(`<span class="hl-red">СУПЕР-УДАР!</span> <b>${enemy.name}</b> бьет цепом по ${targetHero.name} на <b>${finalDmg} урона</b> (${rawSuper} ур., броня: ${targetHero.armor})!`, 'enemy');
                     this.applyDamageToUnit(enemy, targetHero, finalDmg, true);
                 }
             } else {
                 const rawDmg = this.roll(enemy.atkSides);
                 const finalDmg = Math.max(1, rawDmg - Math.floor(targetHero.armor / 2));
-                this.hudView.appendLog(`${enemy.name} атакует ${targetHero.name} (${finalDmg} ур.).`);
+                this.hudView.appendLog(`<b>${enemy.name}</b> атакует ${targetHero.name} на <b>${finalDmg} урона</b>.`, 'enemy');
                 this.applyDamageToUnit(enemy, targetHero, finalDmg);
             }
         }
@@ -489,11 +506,11 @@ export class CombatPresenter {
             combat.active = false;
             const q = this.state.activeQuest;
             let rewardGold = 45 + this.roll(15);
+            const rewardExp = (!combat.isAmbush && q) ? q.expReward : 10;
             if (combat.isAmbush) {
                 rewardGold = 20 + this.roll(10);
             } else if (q) {
-                const spread = Math.max(1, q.goldMax - q.goldMin + 1);
-                rewardGold = q.goldMin + Math.floor(Math.random() * spread);
+                rewardGold = q.goldReward;
             }
             this.state.gold += rewardGold;
             if (!combat.isAmbush) this.state.questsDone++;
@@ -507,11 +524,11 @@ export class CombatPresenter {
 
             this.state.party.filter(h => h.inSquad && h.status === 'ready' && h.hp > 0).forEach(h => {
                 h.tempHp = 0;
-                h.exp += 10;
-                if (h.exp >= 20) {
-                    h.exp -= 20; h.lvl++; h.talentPts++; h.maxHp += 3; h.hp += 3;
-                    rep.levelUps.push(`${h.name} (Ур.${h.lvl})`);
-                    this.hudView.appendLog(`<span class="hl-green">НОВЫЙ УРОВЕНЬ!</span> ${h.name} достиг ${h.lvl} ур. и получил +1 очко талантов!`);
+                h.exp += rewardExp;
+                while (h.exp >= 20) {
+                    h.exp -= 20; h.talentPts++; h.maxHp += 3; h.hp += 3;
+                    rep.levelUps.push(`${h.name} (+1 тал.)`);
+                    this.hudView.appendLog(`<span class="hl-green">БОЕВОЙ ОПЫТ!</span> ${h.name} получил +1 очко талантов (+3 Макс. HP)! Изучите талант для повышения уровня.`, 'ally');
                 }
             });
 
@@ -533,7 +550,7 @@ export class CombatPresenter {
                 rep.lootObjects.push(dropped);
                 lootMsg = ` Также добыт <b>${label}</b> — загляните в меню ОТРЯД!`;
             }
-            this.hudView.appendLog(`<span class="hl-gold">ПОБЕДА!</span> Чашники разбиты! Награда: <b>${rewardGold} грошей</b>.${lootMsg}`);
+            this.hudView.appendLog(`<span class="hl-gold">ПОБЕДА!</span> Чашники разбиты! Награда: <b>${rewardGold} грошей</b>.${lootMsg}`, 'system');
             this.topBarView.renderStats(this.state);
             this.hudView.renderVictoryControls();
             return true;
@@ -545,7 +562,7 @@ export class CombatPresenter {
             if (!rep.hasReport) this.state.initExpeditionReport();
             rep.outcome = 'defeat';
 
-            this.hudView.appendLog(`<span class="hl-red">ПОРАЖЕНИЕ!</span> Отряд разбит и с новыми шишками отступает в таверну...`);
+            this.hudView.appendLog(`<span class="hl-red">ПОРАЖЕНИЕ!</span> Отряд разбит и с новыми шишками отступает в таверну...`, 'system');
             this.state.party.forEach(h => {
                 if (h.inSquad && h.status === 'ready') {
                     h.hp = Math.max(6, Math.floor(h.maxHp * 0.4));
@@ -561,6 +578,7 @@ export class CombatPresenter {
 
     public returnFromCombat(): void {
         this.state.scene = 'map';
+        this.state.mapState.encounterPending = null;
         if (!this.state.combat.isAmbush) {
             this.state.mapState.dir = 'to_guild';
             this.state.mapState.progress = 0;

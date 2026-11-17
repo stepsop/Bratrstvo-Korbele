@@ -1,6 +1,7 @@
 import { GameStateModel } from '../models/GameStateModel';
 import { HeroModel } from '../models/HeroModel';
 import { HeroDetailModalView } from './HeroDetailModalView';
+import { uiIcon } from './UiIconHelper';
 
 /**
  * View-компонент управления составом Отряда и Резерва (SRP: отвечает за доску Отряда/Резерва и делегирует осмотр бойца HeroDetailModalView)
@@ -32,7 +33,7 @@ export class SquadAndHeroModalView {
                 const isMissingHpOrBusy = h.hp < h.maxHp || h.status !== 'ready';
 
                 const injHtml = hasInjuries
-                    ? `<div class="concept-card-wounds">🩸 ${h.injuries.join(', ')}</div>`
+                    ? `<div class="concept-card-wounds">${uiIcon('blood', 'ui-icon-xs')} ${h.injuries.join(', ')}</div>`
                     : '';
                 const hpStateText = h.status === 'ready'
                     ? `ХП: ${h.hp} / ${h.maxHp}`
@@ -66,7 +67,10 @@ export class SquadAndHeroModalView {
                 `;
             } else {
                 squadCardsHtml += `
-                    <div class="concept-squad-card empty-slot" data-drop-zone="squad"></div>
+                    <div class="concept-squad-card empty-slot" data-drop-zone="squad">
+                        <div class="concept-empty-title">Свободный слот</div>
+                        <div class="concept-empty-sub">Перетащите сюда бойца</div>
+                    </div>
                 `;
             }
         }
@@ -81,7 +85,7 @@ export class SquadAndHeroModalView {
                 const isMissingHpOrBusy = h.hp < h.maxHp || h.status !== 'ready';
 
                 const parts: string[] = [];
-                if (hasInjuries) parts.push(`🩸 ${h.injuries.join(', ')}`);
+                if (hasInjuries) parts.push(`${uiIcon('blood', 'ui-icon-xs')} ${h.injuries.join(', ')}`);
                 if (h.status !== 'ready') {
                     parts.push(h.status === 'war' ? `Война (${h.timer}ц)` : `Палаты (${h.timer}ц)`);
                 }
@@ -116,9 +120,7 @@ export class SquadAndHeroModalView {
             <div class="concept-squad-board">
                 <div class="concept-squad-section" data-drop-zone="squad">
                     <div class="concept-squad-header">
-                        <span class="concept-squad-hint">Перетаскивайте бойцов между Отрядом и Резервом (цвет = тир вещей + талантов)</span>
-                        <span class="concept-squad-title">Отряд (${squadHeroes.length} / ${state.squadMax})</span>
-                        <button class="concept-close-btn" onclick="closeSquadModal()">✕ ЗАКРЫТЬ</button>
+                        <button class="concept-close-btn" onclick="closeSquadModal()">${uiIcon('close', 'ui-icon-xs')} ЗАКРЫТЬ</button>
                     </div>
                     <div class="concept-squad-grid" data-drop-zone="squad">
                         ${squadCardsHtml}

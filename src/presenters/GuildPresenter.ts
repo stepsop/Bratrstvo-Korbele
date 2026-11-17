@@ -1,4 +1,5 @@
-import { GameStateModel } from '../models/GameStateModel';
+import { GameStateModel, MetalType } from '../models/GameStateModel';
+import { GameDataCatalog } from '../models/GameDataCatalog';
 import { EquipmentItem } from '../models/EquipmentItem';
 import { HeroModel } from '../models/HeroModel';
 import { GuildNpcModalView } from '../views/GuildNpcModalView';
@@ -28,6 +29,14 @@ export class GuildPresenter {
 
     public closeWarTrackerPopup(event?: Event): void {
         this.topBarView.closePopup(this.state, event);
+    }
+
+    public toggleClinicTrackerPopup(event?: Event): void {
+        this.topBarView.toggleClinicPopup(this.state, event);
+    }
+
+    public closeClinicTrackerPopup(event?: Event): void {
+        this.topBarView.closeClinicPopup(this.state, event);
     }
 
     public enterGuild(showBattleSummary = false): void {
@@ -99,7 +108,6 @@ export class GuildPresenter {
             const goldEarned = contract.goldMin + this.roll(contract.goldMax - contract.goldMin + 1);
             this.state.gold += goldEarned;
             const lvls = contract.lvlGain || 1;
-            hero.lvl += lvls;
             hero.talentPts += lvls;
             hero.maxHp += 4 * lvls;
             hero.hp = hero.maxHp;
@@ -108,7 +116,7 @@ export class GuildPresenter {
                 hero.injuries.push('Боевое ранение (-2 HP)');
                 hero.maxHp = Math.max(10, hero.maxHp - 2);
                 hero.hp = hero.maxHp;
-                this.hudView.appendLog(`<span class="hl-gold">ВОЗВРАЩЕНИЕ С ВОЙНЫ (${contract.name}):</span> ${hero.name} принес <b>${goldEarned} грошей</b>, поднял Ур.${hero.lvl}, но получил ранение!`);
+                this.hudView.appendLog(`<span class="hl-gold">ВОЗВРАЩЕНИЕ С ВОЙНЫ (${contract.name}):</span> ${hero.name} принес <b>${goldEarned} грошей</b>, получил +${lvls} очк. талантов, но получил ранение!`);
             } else {
                 const bonusText = contract.bonusItem ? `, а также привез трофей: ${contract.bonusItem.name}` : '';
                 if (contract.bonusItem) {
@@ -116,7 +124,7 @@ export class GuildPresenter {
                         new EquipmentItem(contract.bonusItem.name, contract.bonusItem.slot, contract.bonusItem.atk, contract.bonusItem.armor, contract.bonusItem.block)
                     );
                 }
-                this.hudView.appendLog(`<span class="hl-gold">ТРИУМФ ВОЙНЫ (${contract.name}):</span> ${hero.name} вернулся с победой! Принес <b>${goldEarned} грошей</b> и поднял Ур.${hero.lvl}${bonusText}!`);
+                this.hudView.appendLog(`<span class="hl-gold">ТРИУМФ ВОЙНЫ (${contract.name}):</span> ${hero.name} вернулся с победой! Принес <b>${goldEarned} грошей</b> и +${lvls} очк. талантов${bonusText}!`);
             }
         }
         delete hero.warContract;
@@ -124,11 +132,14 @@ export class GuildPresenter {
     }
 
     public openGuildSection(sec: string): void {
-        if (sec === 'host') this.openHostDialog();
-        else if (sec === 'clinic') this.openClinicDialog();
+        if (sec === 'host') {
+            this.state.hostMenuState.activeTab = 'hub';
+            this.openHostDialog();
+        } else if (sec === 'clinic') this.openClinicDialog();
         else if (sec === 'mercs') this.openMercsDialog();
         else if (sec === 'verbirz') this.openVerbirzDialog();
         else if (sec === 'quests') this.openQuestsDialog();
+        else if (sec === 'smith') this.openSmithDialog();
     }
 
     public openHostDialog(customSpeech: string | null = null): void {
@@ -137,13 +148,163 @@ export class GuildPresenter {
         this.npcView.renderHostDialog(this.state, speech);
     }
 
+    public switchHostTab(tab: 'hub' | 'upgrades' | 'consumables' | 'armor'): void {
+        this.state.hostMenuState.activeTab = tab;
+        this.npcView.renderHostDialog(this.state, this.state.hostMenuState.speech);
+    }
+
+    public selectHostArmorItem(itemId: string): void {
+        this.state.hostMenuState.selectedArmorId = itemId;
+        this.npcView.renderHostDialog(this.state, this.state.hostMenuState.speech);
+    }
+
+    public buyHostArmorItem(itemId: string): void {
+        const item = this.state.hostArmorShop.find(x => x.id === itemId);
+        if (!item || item.purchased || this.state.gold < item.price) return;
+
+        this.state.gold -= item.price;
+        item.purchased = true;
+        this.state.spareEquip.push(
+            new EquipmentItem(item.name, item.slot, item.atk, item.armor, item.block, item.desc)
+        );
+        this.hudView.appendLog(`<span class="hl-gold">ЛАВКА ХОЗЯИНА:</span> Куплено снаряжение <b>${item.name}</b>! Наденьте его на бойца в меню ОТРЯД.`);
+        this.topBarView.renderStats(this.state);
+        this.openHostDialog('«Отменная обновка, пане! Сразу отправляй в арсенал отряда!»');
+    }
+
+    public selectHostUpgrade(upgradeId: string): void {
+        this.state.hostMenuState.selectedUpgradeId = upgradeId;
+        this.npcView.renderHostDialog(this.state, this.state.hostMenuState.speech);
+    }
+
+    public buyTavernUpgrade(upgradeId: string): void {
+        const node = this.state.tavernUpgrades.find(u => u.id === upgradeId);
+        if (!node || node.unlocked) return;
+
+        const prevOk = node.tier === 1 || this.state.tavernUpgrades.some(
+            u => u.branch === node.branch && u.tier === node.tier - 1 && u.unlocked
+        );
+        if (!prevOk || this.state.gold < node.price) return;
+
+        this.state.gold -= node.price;
+        node.unlocked = true;
+
+        // Реальное применение эффекта улучшения таверны
+        const aliveParty = this.state.party.filter(h => h.status !== 'dead');
+        if (node.id === 'upg_b1_t1') {
+            this.state.reserveMax += 3;
+            aliveParty.forEach(h => { h.maxHp += 2; h.hp += 2; });
+        } else if (node.id === 'upg_b1_t2') {
+            aliveParty.forEach(h => { h.atkBonus += 1; h.blockChance += 3; });
+        } else if (node.id === 'upg_b1_t3') {
+            aliveParty.forEach(h => { h.armor += 1; h.maxHp += 4; h.hp += 4; });
+        } else if (node.id === 'upg_b1_t4') {
+            aliveParty.forEach(h => { h.atkBonus += 2; h.armor += 1; h.blockChance += 5; });
+        } else if (node.id === 'upg_b2_t1') {
+            this.state.beer += 2;
+        } else if (node.id === 'upg_b2_t2') {
+            aliveParty.forEach(h => { h.maxHp += 4; h.hp += 4; h.initBase += 1; });
+        } else if (node.id === 'upg_b2_t3') {
+            this.state.pots += 2;
+        } else if (node.id === 'upg_b2_t4') {
+            this.state.gold += 50;
+        } else if (node.id === 'upg_b3_t1') {
+            this.state.medkits += 2;
+        } else if (node.id === 'upg_b3_t2') {
+            aliveParty.forEach(h => {
+                h.maxHp += 3;
+                h.hp = h.maxHp;
+                h.injuries = [];
+            });
+        } else if (node.id === 'upg_b3_t3') {
+            this.state.warCampaigns.forEach(c => {
+                c.deathChance = Math.max(1, c.deathChance - 4);
+                c.goldMin += 20;
+                c.goldMax += 20;
+            });
+        } else if (node.id === 'upg_b3_t4') {
+            aliveParty.forEach(h => { h.maxHp += 5; h.hp += 5; });
+            this.state.warCampaigns.forEach(c => {
+                c.goldMin += 35;
+                c.goldMax += 35;
+            });
+        } else if (node.id === 'upg_b4_t1') {
+            this.state.metals.iron += 4;
+            this.state.metals.bronze += 2;
+            this.state.metals.steel += 1;
+        } else if (node.id === 'upg_b4_t2') {
+            this.state.metals.iron += 3;
+            this.state.metals.bronze += 2;
+        } else if (node.id === 'upg_b4_t3') {
+            this.state.metals.steel += 2;
+            this.state.metals.damask += 1;
+        } else if (node.id === 'upg_b4_t4') {
+            this.state.metals.damask += 2;
+            aliveParty.forEach(h => { h.atkBonus += 1; h.armor += 1; });
+        } else if (node.id === 'upg_b5_t1') {
+            aliveParty.forEach(h => { h.initBase += 1; });
+            this.state.herbs += 2;
+            this.state.pots += 1;
+        } else if (node.id === 'upg_b5_t2') {
+            aliveParty.forEach(h => { h.atkBonus += 2; h.blockChance += 3; });
+            this.state.warCampaigns.forEach(c => {
+                c.deathChance = Math.max(1, c.deathChance - 3);
+            });
+        } else if (node.id === 'upg_b5_t3') {
+            aliveParty.forEach(h => {
+                h.maxHp += 4;
+                h.hp += 4;
+                h.initBase += 1;
+                h.blockChance += 2;
+            });
+            this.state.warCampaigns.forEach(c => {
+                c.goldMin += 20;
+                c.goldMax += 20;
+            });
+        } else if (node.id === 'upg_b5_t4') {
+            aliveParty.forEach(h => { h.atkBonus += 3; h.initBase += 2; h.blockChance += 5; });
+            this.state.warCampaigns.forEach(c => {
+                c.goldMin += 40;
+                c.goldMax += 40;
+            });
+        }
+
+        this.hudView.appendLog(`<span class="hl-green">УЛУЧШЕНИЕ ТАВЕРНЫ:</span> Построено «<b>${node.name}</b>»! Бонусы применены к братству.`);
+        this.topBarView.renderStats(this.state);
+        this.openHostDialog('«Мастера потрудились на славу! Наша корчма крепнет день ото дня!»');
+    }
+
+    public selectHostConsumable(consumableId: 'beer' | 'medkit' | 'pot'): void {
+        this.state.hostMenuState.selectedConsumableId = consumableId;
+        this.npcView.renderHostDialog(this.state, this.state.hostMenuState.speech);
+    }
+
     public buyShopItem(type: string): void {
-        if (type === 'beer' && this.state.gold >= 10) {
-            this.state.gold -= 10;
+        const hasBeerDisc = this.state.tavernUpgrades.some(u => u.id === 'upg_b2_t1' && u.unlocked);
+        const hasMedDisc = this.state.tavernUpgrades.some(u => u.id === 'upg_b3_t1' && u.unlocked);
+        const hasPotDisc = this.state.tavernUpgrades.some(u => u.id === 'upg_b2_t3' && u.unlocked);
+
+        const beerCost = hasBeerDisc ? 8 : 10;
+        const medCost = hasMedDisc ? 15 : 18;
+        const potCost = hasPotDisc ? 20 : 25;
+
+        if (type === 'beer' && this.state.gold >= beerCost) {
+            this.state.gold -= beerCost;
             this.state.beer++;
-            this.hudView.appendLog(`Куплена бутылка пенного пива (1d10 HP).`);
-        } else if (type === 'pot' && this.state.gold >= 25) {
-            this.state.gold -= 25;
+            this.hudView.appendLog(`Куплена кружка чешского пенного пива (1d10 HP).`);
+        } else if (type === 'medkit' && this.state.gold >= medCost) {
+            this.state.gold -= medCost;
+            this.state.medkits++;
+            this.state.herbs += 3;
+            const wounded = this.state.party.find(h => h.status !== 'dead' && h.injuries.length > 0);
+            if (wounded) {
+                const removed = wounded.injuries.pop();
+                this.hudView.appendLog(`Куплена <b>Полевая аптечка</b>: снята травма «${removed}» у бойца ${wounded.name}!`);
+            } else {
+                this.hudView.appendLog(`Куплена <b>Полевая аптечка</b> (+1 в запас, +3 целебные травы).`);
+            }
+        } else if (type === 'pot' && this.state.gold >= potCost) {
+            this.state.gold -= potCost;
             this.state.pots++;
             this.hudView.appendLog(`Куплен Штурмовой горшок (1d20 урона).`);
         } else if (type === 'sword' && this.state.gold >= 35) {
@@ -334,5 +495,78 @@ export class GuildPresenter {
         }
         this.topBarView.renderStats(this.state);
         this.openQuestsDialog();
+    }
+
+    public openSmithDialog(customSpeech: string | null = null): void {
+        if (customSpeech) {
+            this.state.smithMenuState.speech = customSpeech;
+        }
+        this.npcView.renderSmithDialog(this.state);
+    }
+
+    public setSmithRecipeFilter(filter: 'all' | 'weapon' | 'armor' | 'trinket'): void {
+        this.state.smithMenuState.filter = filter;
+        this.npcView.renderSmithDialog(this.state);
+    }
+
+    public smeltSpareItem(spareIdx: number): void {
+        const item = this.state.spareEquip[spareIdx];
+        if (!item) return;
+
+        const forgeTier = GameDataCatalog.getForgeTier(this.state.tavernUpgrades);
+        const yieldMap = GameDataCatalog.getSmeltYield(item, forgeTier);
+        const gainedParts: string[] = [];
+
+        (['iron', 'bronze', 'steel', 'damask'] as MetalType[]).forEach(m => {
+            const amt = yieldMap[m] || 0;
+            if (amt > 0) {
+                this.state.metals[m] += amt;
+                gainedParts.push(`+${amt} ${GameDataCatalog.METAL_META[m].name}`);
+            }
+        });
+
+        this.state.spareEquip.splice(spareIdx, 1);
+        const gainedStr = gainedParts.join(', ');
+        this.hudView.appendLog(`<span class="hl-gold">КУЗНИЦА:</span> Предмет <b>${item.name}</b> переплавлен в слитки (${gainedStr}).`);
+        this.openSmithDialog(`«Жар славный! Переплавили «${item.name}» и отлили слитки: ${gainedStr}.»`);
+    }
+
+    public craftSmithRecipe(recipeId: string): void {
+        const recipe = GameDataCatalog.createSmithingRecipes().find(r => r.id === recipeId);
+        if (!recipe) return;
+
+        const metalKeys: MetalType[] = ['iron', 'bronze', 'steel', 'damask'];
+        for (const m of metalKeys) {
+            const need = recipe.cost[m] || 0;
+            if (this.state.metals[m] < need) return;
+        }
+        for (const m of metalKeys) {
+            const need = recipe.cost[m] || 0;
+            if (need > 0) this.state.metals[m] -= need;
+        }
+
+        const bonus = GameDataCatalog.getForgeCraftBonus(this.state.tavernUpgrades);
+        const atk = recipe.atk + (recipe.slot === 'weapon' ? bonus.atk : 0);
+        const armor = recipe.armor + (recipe.slot === 'armor' ? bonus.armor : 0);
+        const block = recipe.block + (recipe.slot === 'trinket' ? bonus.block : 0);
+        const descSuffix = bonus.atk > 0 ? ' (Усилено клеймом Кузницы братства)' : '';
+
+        const forged = new EquipmentItem(
+            recipe.name,
+            recipe.slot,
+            atk,
+            armor,
+            block,
+            recipe.desc + descSuffix
+        );
+        this.state.spareEquip.push(forged);
+
+        const statsParts: string[] = [];
+        if (atk > 0) statsParts.push(`+${atk} Ур`);
+        if (armor > 0) statsParts.push(`+${armor} Бр`);
+        if (block > 0) statsParts.push(`+${block}% Блок`);
+
+        this.hudView.appendLog(`<span class="hl-green">КУЗНИЦА:</span> Выковано снаряжение <b>${forged.name}</b> (${statsParts.join(', ')})! Отправлено на склад отряда.`);
+        this.openSmithDialog(`«Готово, пане! «${forged.name}» (${statsParts.join(', ')}) остыло и лежит в арсенале отряда!»`);
     }
 }

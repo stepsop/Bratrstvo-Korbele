@@ -152,8 +152,16 @@ export class HeroModel extends UnitBase {
         return this.talents.some(t => t.tier === tier - 1 && t.unlocked);
     }
 
+    public isTalentSiblingUnlocked(node: TalentNode): boolean {
+        if (node.col <= 0 || node.tier <= 0) return false;
+        return this.talents.some(t => t.id !== node.id && t.col === node.col && t.tier === node.tier && t.unlocked);
+    }
+
     public isTalentNodeAvailable(node: TalentNode): boolean {
-        if (node.tier <= 1) return true;
+        if (node.unlocked) return false;
+        if (node.col <= 0 || node.tier <= 0) return true;
+        if (this.isTalentSiblingUnlocked(node)) return false;
+        if (node.tier === 1) return true;
         return this.talents.some(t => t.tier === node.tier - 1 && t.col === node.col && t.unlocked);
     }
 
@@ -165,7 +173,22 @@ export class HeroModel extends UnitBase {
         this.talentPts--;
         t.unlocked = true;
         t.applyEffect(this);
+        this.lvl++;
         return t;
+    }
+
+    public resetTalents(): number {
+        let refunded = 0;
+        for (const t of this.talents) {
+            if (t.unlocked) {
+                t.revertEffect(this);
+                t.unlocked = false;
+                refunded++;
+            }
+        }
+        this.talentPts += refunded;
+        this.lvl = Math.max(1, this.lvl - refunded);
+        return refunded;
     }
 
     /**
@@ -193,19 +216,19 @@ export class HeroModel extends UnitBase {
         const hasT3 = this.talents.some(t => t.tier >= 3 && t.unlocked);
         const unlockedCount = this.talents.filter(t => t.unlocked).length;
 
-        if (minGearTier >= 4 && hasT3 && unlockedCount >= 3) {
+        if (this.lvl >= 4 && minGearTier >= 4 && hasT3 && unlockedCount >= 3) {
             return { key: 'gold', label: 'Легендарный (V)', nextHint: 'Максимальный ранг мастерства' };
         }
-        if (minGearTier >= 3 && hasT3) {
+        if (this.lvl >= 4 && minGearTier >= 3 && hasT3) {
             return { key: 'purple', label: 'Эпический (IV)', nextHint: 'До Жёлтого: надеть все вещи T4' };
         }
-        if (minGearTier >= 2 && hasT2) {
-            return { key: 'blue', label: 'Редкий (III)', nextHint: 'До Фиолетового: талант Т3 и все вещи Т3+' };
+        if (this.lvl >= 3 && minGearTier >= 2 && hasT2) {
+            return { key: 'blue', label: 'Редкий (III)', nextHint: 'До Фиолетового: Ур.4, талант Т3 и все вещи Т3+' };
         }
-        if (minGearTier >= 1 && hasT1) {
-            return { key: 'green', label: 'Необычный (II)', nextHint: 'До Синего: талант Т2 и все вещи Т2+' };
+        if (this.lvl >= 2 && minGearTier >= 1 && hasT1) {
+            return { key: 'green', label: 'Необычный (II)', nextHint: 'До Синего: Ур.3, талант Т2 и все вещи Т2+' };
         }
-        return { key: 'grey', label: 'Обычный (I)', nextHint: 'До Зелёного: изучить талант Т1 и надеть 3 вещи с бонусами' };
+        return { key: 'grey', label: 'Обычный (I)', nextHint: 'До Зелёного: Ур.2, изучить талант Т1 и надеть 3 вещи с бонусами' };
     }
 
     public equipItem(newItem: EquipmentItem): EquipmentItem | null {
@@ -242,21 +265,24 @@ export class HeroModel extends UnitBase {
         return true;
     }
 
-    public getPassiveInfo(): { title: string; desc: string } {
+    public getPassiveInfo(): { icon: string; title: string; desc: string } {
         if (this.cls === 'Шляхта') {
             return {
-                title: '🍺 Пассивка: Непросыхаемый алкаш',
+                icon: 'beer',
+                title: 'Пассивка: Непросыхаемый алкаш',
                 desc: '50% шанс спьяну промахнуться (0 урона врагу), но и 50% шанс случайно увернуться от любого удара врага (0 урона герою).'
             };
         }
         if (this.cls === 'Святоша') {
             return {
-                title: '🌿 Пассивка: Знаток трав',
+                icon: 'herb',
+                title: 'Пассивка: Знаток трав',
                 desc: '10% шанс в начале любого хода в бою найти целебную траву. Из 5 трав прямо в бою варит 1d4 бутылок пива (1d10 HP).'
             };
         }
         return {
-            title: '🔫 Пассивка: Внезапный Пистоль',
+            icon: 'crossbow',
+            title: 'Пассивка: Внезапный Пистоль',
             desc: '20% шанс в начале своего хода дополнительно выстрелить из пистоля (1d10 урона) в случайного врага.'
         };
     }
@@ -264,22 +290,22 @@ export class HeroModel extends UnitBase {
     public getSkillDetails(): HeroSkillInfo[] {
         if (this.cls === 'Шляхта') {
             return [
-                { key: 's1', icon: '💥', short: 'Атака плашмя', title: this.skill1Name, cd: `КД: ${this.maxCd1} х.`, desc: `Мощный круговой удар плашмя: бросает 1d10 (+${this.atkBonus} Ур) и равномерно распределяет урон по всем живым врагам.` },
-                { key: 's2', icon: '🗡️', short: 'Удар саблей', title: this.skill2Name, cd: 'Без КД', desc: `Базовый рубящий удар клинком по выбранной цели: наносит 1d4 (+${this.atkBonus} Ур) урона.` },
-                { key: 'pas', icon: '🍺', short: 'Алкаш (Пасс.)', title: 'Непросыхаемый алкаш (Пассивка)', cd: 'Пассивно', desc: '50% шанс спьяну промахнуться (0 урона врагу), но и 50% шанс случайно увернуться от любого удара врага (0 урона герою).' }
+                { key: 's1', icon: 'crossed_swords', short: 'Атака плашмя', title: this.skill1Name, cd: `КД: ${this.maxCd1} х.`, desc: `Мощный круговой удар плашмя: бросает 1d10 (+${this.atkBonus} Ур) и равномерно распределяет урон по всем живым врагам.` },
+                { key: 's2', icon: 'sword', short: 'Удар саблей', title: this.skill2Name, cd: 'Без КД', desc: `Базовый рубящий удар клинком по выбранной цели: наносит 1d4 (+${this.atkBonus} Ур) урона.` },
+                { key: 'pas', icon: 'beer', short: 'Алкаш (Пасс.)', title: 'Непросыхаемый алкаш (Пассивка)', cd: 'Пассивно', desc: '50% шанс спьяну промахнуться (0 урона врагу), но и 50% шанс случайно увернуться от любого удара врага (0 урона герою).' }
             ];
         }
         if (this.cls === 'Святоша') {
             return [
-                { key: 's1', icon: '🪵', short: 'Удар дубиной', title: this.skill1Name, cd: 'Без КД', desc: `Уверенный удар суковатой дубиной по еретику: наносит 1d4 (+${this.atkBonus} Ур) урона.` },
-                { key: 's2', icon: '🍺', short: 'Запить грехи', title: this.skill2Name, cd: `КД: ${this.maxCd2} х.`, desc: 'Исцеляет самого раненого союзника в отряде на 1d4 HP святым пенным напитком.' },
-                { key: 'pas', icon: '🌿', short: 'Травник (Пасс.)', title: 'Знаток трав (Пассивка)', cd: 'Пассивно', desc: '10% шанс в начале хода любого существа найти траву. Из 5 трав прямо в бою варит 1d4 бутылок пива (1d10 HP).' }
+                { key: 's1', icon: 'mace', short: 'Удар дубиной', title: this.skill1Name, cd: 'Без КД', desc: `Уверенный удар суковатой дубиной по еретику: наносит 1d4 (+${this.atkBonus} Ур) урона.` },
+                { key: 's2', icon: 'beer', short: 'Запить грехи', title: this.skill2Name, cd: `КД: ${this.maxCd2} х.`, desc: 'Исцеляет самого раненого союзника в отряде на 1d4 HP святым пенным напитком.' },
+                { key: 'pas', icon: 'herb', short: 'Травник (Пасс.)', title: 'Знаток трав (Пассивка)', cd: 'Пассивно', desc: '10% шанс в начале хода любого существа найти траву. Из 5 трав прямо в бою варит 1d4 бутылок пива (1d10 HP).' }
             ];
         }
         return [
-            { key: 's1', icon: '🔫', short: 'Аркебуза', title: this.skill1Name, cd: `КД: ${this.maxCd1} х.`, desc: `Залп картечью на 1d10 (+${this.atkBonus} Ур) урона, который делится между основной целью и соседним врагом (с переносом избытка урона).` },
-            { key: 's2', icon: '🗡️', short: 'Кортик', title: this.skill2Name, cd: 'Без КД', desc: `Быстрый укол кортиком в ближнем бою: наносит 1d4 (+${this.atkBonus} Ур) урона по цели.` },
-            { key: 'pas', icon: '🎯', short: 'Пистоль (Пасс.)', title: 'Внезапный Пистоль (Пассивка)', cd: 'Пассивно', desc: `20% шанс в начале своего хода дополнительно выстрелить из пистоля на 1d10 (+${this.atkBonus} Ур) в случайного врага.` }
+            { key: 's1', icon: 'crossbow', short: 'Аркебуза', title: this.skill1Name, cd: `КД: ${this.maxCd1} х.`, desc: `Залп картечью на 1d10 (+${this.atkBonus} Ур) урона, который делится между основной целью и соседним врагом (с переносом избытка урона).` },
+            { key: 's2', icon: 'dagger', short: 'Кортик', title: this.skill2Name, cd: 'Без КД', desc: `Быстрый укол кортиком в ближнем бою: наносит 1d4 (+${this.atkBonus} Ур) урона по цели.` },
+            { key: 'pas', icon: 'arrow', short: 'Пистоль (Пасс.)', title: 'Внезапный Пистоль (Пассивка)', cd: 'Пассивно', desc: `20% шанс в начале своего хода дополнительно выстрелить из пистоля на 1d10 (+${this.atkBonus} Ур) в случайного врага.` }
         ];
     }
 }

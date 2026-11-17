@@ -1,5 +1,6 @@
 import { GameStateModel, GuildHotspot, TavernBgPresetKey } from '../models/GameStateModel';
 import { HeroModel } from '../models/HeroModel';
+import { QuestFactory } from '../models/QuestFactory';
 import { WoodenFrameDrawer } from './WoodenFrameDrawer';
 import { PortraitCanvasDrawer } from './PortraitCanvasDrawer';
 
@@ -29,6 +30,7 @@ export class CanvasRendererView {
         '3x4':  { img: new Image(), loaded: false },
         '9x16': { img: new Image(), loaded: false }
     };
+    private bohemiaMapLayer: BgLayer = { img: new Image(), loaded: false };
     private npcLayers: Record<string, NpcCutoutLayer> = {};
     private static unitImages: Record<string, { img: HTMLImageElement; loaded: boolean }> = {};
 
@@ -67,7 +69,7 @@ export class CanvasRendererView {
             '3x4':  'backgrounds/tavern_bg_3x4.png',
             '9x16': 'backgrounds/tavern_bg_9x16.png'
         };
-        const cacheBust = '?v=7';
+        const cacheBust = '?v=14';
         (Object.keys(urls) as TavernBgPresetKey[]).forEach(key => {
             const entry = this.bgImages[key];
             entry.img.onload = () => {
@@ -75,6 +77,11 @@ export class CanvasRendererView {
             };
             entry.img.src = urls[key] + cacheBust;
         });
+
+        this.bohemiaMapLayer.img.onload = () => {
+            this.bohemiaMapLayer.loaded = true;
+        };
+        this.bohemiaMapLayer.img.src = 'backgrounds/bohemia_map.png?v=1';
     }
 
     public updateResponsiveBgPreset(state: GameStateModel): void {
@@ -96,8 +103,28 @@ export class CanvasRendererView {
         state.activeBgPreset = nextPreset;
 
         const preset = state.tavernBgPresets[nextPreset] || state.tavernBgPresets['4x3'];
-        const targetW = state.scene === 'guild' ? preset.width : 520;
-        const targetH = state.scene === 'guild' ? preset.height : 290;
+        let targetW = 520;
+        let targetH = 290;
+        if (state.scene === 'guild') {
+            targetW = preset.width;
+            targetH = preset.height;
+        } else if (state.scene === 'map') {
+            if (aspect >= 1) {
+                targetH = 1024;
+                targetW = Math.max(1024, Math.min(2048, Math.round(1024 * aspect)));
+            } else {
+                targetW = 1024;
+                targetH = Math.max(1024, Math.min(2048, Math.round(1024 / Math.max(0.45, aspect))));
+            }
+        } else if (state.scene === 'combat') {
+            if (aspect >= 1) {
+                targetH = 290;
+                targetW = Math.max(440, Math.min(760, Math.round(290 * aspect)));
+            } else {
+                targetW = 360;
+                targetH = Math.max(290, Math.min(540, Math.round(360 / Math.max(0.5, aspect))));
+            }
+        }
         if (this.canvas.width !== targetW || this.canvas.height !== targetH) {
             this.canvas.width = targetW;
             this.canvas.height = targetH;
@@ -105,7 +132,7 @@ export class CanvasRendererView {
     }
 
     private initNpcCutoutSprites(hotspots: GuildHotspot[]): void {
-        const cacheBust = '?v=7';
+        const cacheBust = '?v=16';
         hotspots.forEach(h => {
             const img = new Image();
             const glowCanvas = document.createElement('canvas');
@@ -345,13 +372,13 @@ export class CanvasRendererView {
             const scaleX = this.canvas.width / p.bgW;
             const scaleY = this.canvas.height / p.bgH;
 
-            if (h.id === 'verbirz') {
+            if (h.id === 'verbirz' || h.id === 'smith') {
                 ctx.save();
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
                 ctx.beginPath();
                 const cx = (p.srcX + p.srcW * 0.5) * scaleX;
                 const cy = (p.srcY + p.srcH * 0.93) * scaleY;
-                const rx = (p.srcW * 0.36) * scaleX;
+                const rx = (p.srcW * (h.id === 'smith' ? 0.44 : 0.36)) * scaleX;
                 const ry = (p.srcH * 0.08) * scaleY;
                 ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
                 ctx.fill();
@@ -420,42 +447,247 @@ export class CanvasRendererView {
         }
     }
 
+    private drawMapBadge(
+        ctx: CanvasRenderingContext2D,
+        cx: number,
+        cy: number,
+        text: string,
+        uiScale: number,
+        borderColor = '#d4a24c',
+        textColor = '#ffd700'
+    ): void {
+        ctx.save();
+        ctx.font = `bold ${Math.round(13 * uiScale)}px "Segoe UI", Tahoma, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const metrics = ctx.measureText(text);
+        const padX = 10 * uiScale;
+        const bw = metrics.width + padX * 2;
+        const bh = 22 * uiScale;
+        const bx = this.clamp(cx - bw / 2, 16 * uiScale, this.canvas.width - bw - 16 * uiScale);
+        const by = this.clamp(cy - bh / 2, 16 * uiScale, this.canvas.height - bh - 16 * uiScale);
+
+        ctx.fillStyle = 'rgba(18, 12, 7, 0.9)';
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = Math.max(1.5, 1.5 * uiScale);
+        ctx.strokeRect(bx, by, bw, bh);
+
+        ctx.fillStyle = textColor;
+        ctx.fillText(text, bx + bw / 2, by + bh / 2 + 0.5 * uiScale);
+        ctx.restore();
+    }
+
     public drawMapScene(state: GameStateModel): void {
         const ctx = this.ctx;
-        ctx.fillStyle = '#c8b082';
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        const W = this.canvas.width;
+        const H = this.canvas.height;
+        const s = Math.max(1, Math.round(Math.min(W / 520, H / 290)));
+        const T = 9 * s;
+        const innerW = W - T * 2;
+        const innerH = H - T * 2;
 
-        ctx.fillStyle = '#3d2817'; ctx.font = 'bold 16px Courier New'; ctx.textAlign = 'center';
-        ctx.fillText('~ КАРТА КОРОЛЕВСТВА БОГЕМИЯ ~', this.canvas.width / 2, 32);
+        ctx.fillStyle = '#18100a';
+        ctx.fillRect(0, 0, W, H);
 
-        ctx.strokeStyle = '#5b8499'; ctx.lineWidth = 5;
-        ctx.beginPath(); ctx.moveTo(210, 8); ctx.quadraticCurveTo(250, 140, 190, 282); ctx.stroke();
+        // Вписываем карту Богемии (1536x1024) с сохранением пропорций и без обрезки границ
+        const srcW = 1536;
+        const srcH = 1024;
+        const scale = Math.min(innerW / srcW, innerH / srcH);
+        const mapW = Math.round(srcW * scale);
+        const mapH = Math.round(srcH * scale);
+        const mapX = Math.round(T + (innerW - mapW) / 2);
+        const mapY = Math.round(T + (innerH - mapH) / 2);
+        const ui = Math.max(0.75, mapW / 1150);
 
-        const startX = 95, startY = 215;
-        const endX = 420, endY = 90;
+        if (this.bohemiaMapLayer.loaded) {
+            ctx.save();
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(this.bohemiaMapLayer.img, mapX, mapY, mapW, mapH);
+            ctx.strokeStyle = '#5c4028';
+            ctx.lineWidth = Math.max(2, 2.5 * ui);
+            ctx.strokeRect(mapX, mapY, mapW, mapH);
+            ctx.restore();
+        } else {
+            ctx.fillStyle = '#c8b082';
+            ctx.fillRect(mapX, mapY, mapW, mapH);
+        }
 
-        ctx.strokeStyle = '#8b261d'; ctx.lineWidth = 3;
-        ctx.setLineDash([6, 6]);
-        ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(endX, endY); ctx.stroke();
-        ctx.setLineDash([]);
+        const route = QuestFactory.getQuestMapRoute(state.activeQuest);
+        const pts = route.map(p => ({
+            x: mapX + (p.x / srcW) * mapW,
+            y: mapY + (p.y / srcH) * mapH
+        }));
 
-        ctx.fillStyle = '#2b1d12'; ctx.fillRect(startX - 10, startY - 10, 20, 20);
-        ctx.fillStyle = '#3d2817'; ctx.font = 'bold 11px Courier New';
-        ctx.fillText('Гильдия Bratrstvo', startX, startY + 24);
-
-        ctx.fillStyle = '#8b0000';
-        ctx.beginPath(); ctx.arc(endX, endY, 11, 0, Math.PI * 2); ctx.fill();
-        ctx.fillText('Отряд Чашников', endX, endY + 24);
+        // Рассчитываем суммарную длину маршрута и текущую точку отряда
+        const segLens: number[] = [];
+        let totalLen = 0;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const dx = pts[i + 1].x - pts[i].x;
+            const dy = pts[i + 1].y - pts[i].y;
+            const len = Math.hypot(dx, dy);
+            segLens.push(len);
+            totalLen += len;
+        }
 
         const t = state.mapState.dir === 'to_quest' ? state.mapState.progress : (1 - state.mapState.progress);
-        const px = startX + (endX - startX) * t;
-        const py = startY + (endY - startY) * t;
+        const targetDist = totalLen * this.clamp(t, 0, 1);
 
-        this.drawSprite('szlachta', px, py - 8 + Math.sin(state.frame * 0.25) * 3, 2, '#2b1d12');
-        ctx.fillStyle = '#8b0000';
-        ctx.fillText(state.mapState.dir === 'to_quest' ? 'Идем на задание...' : 'Возвращаемся в гильдию...', this.canvas.width / 2, 265);
+        let acc = 0;
+        let px = pts[0].x;
+        let py = pts[0].y;
+        let moveDx = pts.length > 1 ? (pts[1].x - pts[0].x) : 1;
+        let currentSegIdx = 0;
+        for (let i = 0; i < segLens.length; i++) {
+            const len = segLens[i];
+            if (targetDist <= acc + len || i === segLens.length - 1) {
+                const localT = len > 0 ? this.clamp((targetDist - acc) / len, 0, 1) : 0;
+                px = pts[i].x + (pts[i + 1].x - pts[i].x) * localT;
+                py = pts[i].y + (pts[i + 1].y - pts[i].y) * localT;
+                const segDx = pts[i + 1].x - pts[i].x;
+                moveDx = state.mapState.dir === 'to_quest' ? segDx : -segDx;
+                currentSegIdx = i;
+                break;
+            }
+            acc += len;
+        }
 
-        WoodenFrameDrawer.drawWoodenFrame(ctx, this.canvas.width, this.canvas.height);
+        // Рисуем маршрут (подложка + пунктирная дорожка + пройденный золотой участок)
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.setLineDash([12 * ui, 8 * ui]);
+
+        ctx.strokeStyle = 'rgba(20, 12, 6, 0.78)';
+        ctx.lineWidth = 6 * ui;
+        ctx.beginPath();
+        pts.forEach((pt, idx) => idx === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
+        ctx.stroke();
+
+        ctx.strokeStyle = '#a82218';
+        ctx.lineWidth = 3.2 * ui;
+        ctx.beginPath();
+        pts.forEach((pt, idx) => idx === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
+        ctx.stroke();
+
+        // Пройденная часть пути золотом
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 3.2 * ui;
+        ctx.beginPath();
+        if (state.mapState.dir === 'to_quest') {
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i <= currentSegIdx; i++) {
+                ctx.lineTo(pts[i].x, pts[i].y);
+            }
+            ctx.lineTo(px, py);
+        } else {
+            const endPt = pts[pts.length - 1];
+            ctx.moveTo(endPt.x, endPt.y);
+            for (let i = pts.length - 2; i > currentSegIdx; i--) {
+                ctx.lineTo(pts[i].x, pts[i].y);
+            }
+            ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        // Точка старта — Прага (Таверна Bratrstvo)
+        const startPt = pts[0];
+        ctx.save();
+        ctx.fillStyle = '#1b1109';
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2.5 * ui;
+        ctx.beginPath();
+        ctx.arc(startPt.x, startPt.y, 7.5 * ui, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+        this.drawMapBadge(ctx, startPt.x, startPt.y - 22 * ui, '🏰 Прага (Таверна)', ui, '#d4a24c', '#ffd700');
+
+        // Точка цели — место задания
+        const endPt = pts[pts.length - 1];
+        const pulse = 1 + Math.sin(state.frame * 0.14) * 0.22;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 70, 50, 0.72)';
+        ctx.lineWidth = 2.5 * ui;
+        ctx.beginPath();
+        ctx.arc(endPt.x, endPt.y, 14 * ui * pulse, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = '#7a1111';
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2.2 * ui;
+        ctx.beginPath();
+        ctx.arc(endPt.x, endPt.y, 8 * ui, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+
+        const destLabel = state.activeQuest ? `⚔️ ${state.activeQuest.location}` : '⚔️ Цель похода';
+        this.drawMapBadge(ctx, endPt.x, endPt.y + 24 * ui, destLabel, ui, '#cc4444', '#ffdf9e');
+
+        // Рисуем точку текущего положения на дороге + шагающий спрайт лидера отряда
+        const leader = state.party.find(h => h.inSquad && h.status === 'ready' && h.hp > 0);
+        const spriteKey = leader?.sprite || 'szlachta';
+        const isMarching = state.mapState.encounterPending === null;
+        const bob = isMarching ? Math.sin(state.frame * 0.28) * 3.5 * ui : 0;
+        const flipLeft = moveDx < -0.5;
+
+        ctx.save();
+        ctx.fillStyle = '#ffd700';
+        ctx.strokeStyle = '#1a0f08';
+        ctx.lineWidth = 2 * ui;
+        ctx.beginPath();
+        ctx.arc(px, py, 5 * ui, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.beginPath();
+        ctx.ellipse(px, py - 2 * ui, 16 * ui, 5.5 * ui, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        if (state.mapState.encounterPending === 'ambush') {
+            const ambushPulse = 1 + Math.sin(state.frame * 0.22) * 0.24;
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 55, 40, 0.85)';
+            ctx.lineWidth = 3 * ui;
+            ctx.beginPath();
+            ctx.arc(px, py, 16 * ui * ambushPulse, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        const unitEntry = CanvasRendererView.unitImages[spriteKey];
+        if (unitEntry && unitEntry.loaded && unitEntry.img.naturalWidth > 0) {
+            const drawH = 66 * ui;
+            const aspect = unitEntry.img.naturalWidth / unitEntry.img.naturalHeight;
+            const drawW = drawH * aspect;
+            const drawY = py - drawH * 0.48 + bob;
+
+            ctx.save();
+            ctx.translate(px, drawY);
+            if (flipLeft) ctx.scale(-1, 1);
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+            ctx.shadowBlur = 6 * ui;
+            ctx.drawImage(unitEntry.img, -drawW / 2, -drawH / 2, drawW, drawH);
+            ctx.restore();
+
+            const squadBadge = state.mapState.encounterPending === 'ambush' ? '⚠️ Засада!' : '🛡️ Отряд';
+            const badgeBorder = state.mapState.encounterPending === 'ambush' ? '#ff5544' : '#ffd700';
+            this.drawMapBadge(ctx, px, drawY - drawH / 2 - 14 * ui, squadBadge, ui, badgeBorder, '#ffffff');
+        } else {
+            this.drawSprite(spriteKey, px, py - 14 * ui + bob, 2.2 * ui, leader?.color || '#2b1d12', false, false, flipLeft, '#ffd700');
+            const squadBadge = state.mapState.encounterPending === 'ambush' ? '⚠️ Засада!' : '🛡️ Отряд';
+            const badgeBorder = state.mapState.encounterPending === 'ambush' ? '#ff5544' : '#ffd700';
+            this.drawMapBadge(ctx, px, py - 42 * ui, squadBadge, ui, badgeBorder, '#ffffff');
+        }
+
+        WoodenFrameDrawer.drawWoodenFrame(ctx, W, H);
     }
 
     public drawCombatScene(state: GameStateModel): void {
@@ -464,11 +696,12 @@ export class CanvasRendererView {
         const W = this.canvas.width;
         const H = this.canvas.height;
         const T = 9;
+        const yOff = Math.max(0, Math.round((H - 290) * 0.5));
 
         ctx.fillStyle = '#1f1610';
         ctx.fillRect(0, 0, W, H);
         ctx.fillStyle = '#2b2017';
-        ctx.fillRect(T, 175, W - T * 2, 48);
+        ctx.fillRect(T, 175 + yOff, W - T * 2, Math.max(48, H - (175 + yOff) - T - 24));
 
         ctx.fillStyle = 'rgba(13, 9, 7, 0.78)';
         ctx.fillRect(T, T, W - T * 2, 18);
@@ -476,12 +709,15 @@ export class CanvasRendererView {
         const buffInfo = combat.psaKrevBuffTurns > 0 ? ` | 🔥 ПСЯ КРЕВ (${combat.psaKrevBuffTurns} х.)` : '';
         ctx.fillText((combat.paused ? '=== ТАКТИЧЕСКАЯ ПАУЗА ===' : '=== АВТО-БОЙ (ПРОБЕЛ — Пауза) ===') + buffInfo, W / 2, 22);
 
+        const heroAnchorX = Math.max(82, Math.round(W * 0.21));
+        const enemyAnchorX = Math.min(W - 82, Math.round(W * 0.79));
+
         const activeHeroes = state.party.filter(h => h.inSquad && h.status === 'ready');
         const hCount = activeHeroes.length;
         const stepH = hCount > 3 ? 42 : 54;
-        const startH = hCount > 3 ? 66 : 95;
+        const startH = (hCount > 3 ? 66 : 95) + yOff;
         activeHeroes.forEach((h, idx) => {
-            let baseX = 105 + (idx % 2) * 32;
+            let baseX = heroAnchorX + (idx % 2) * 34;
             const baseY = startH + idx * stepH;
             if (h.lunge > 0) { baseX += 14; h.lunge--; }
             const bob = h.hp > 0 ? Math.sin(state.frame * 0.12 + idx) * 2 : 0;
@@ -511,9 +747,12 @@ export class CanvasRendererView {
             }
         });
 
+        const eCount = combat.enemies.length;
+        const stepE = eCount > 3 ? 42 : 54;
+        const startE = (eCount > 3 ? 66 : 95) + yOff;
         combat.enemies.forEach((e, idx) => {
-            let baseX = 395 - (idx % 2) * 38;
-            const baseY = 95 + idx * 54;
+            let baseX = enemyAnchorX - (idx % 2) * 38;
+            const baseY = startE + idx * stepE;
             if (e.lunge > 0) { baseX -= 14; e.lunge--; }
             const bob = e.hp > 0 ? Math.sin(state.frame * 0.12 + idx + 2) * 2 : 0;
             e.x = baseX; e.y = baseY;

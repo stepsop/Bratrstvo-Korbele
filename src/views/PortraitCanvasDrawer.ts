@@ -59,11 +59,12 @@ export class PortraitCanvasDrawer {
         c.fillRect(0, 0, 72, 72);
 
         const spriteMap: Record<string, { url: string; sx: number; sy: number; sw: number; sh: number }> = {
-            host:    { url: 'sprites/npc_host.png?v=3',    sx: 18,  sy: 4,   sw: 126, sh: 126 },
-            verbirz: { url: 'sprites/npc_verbirz.png?v=3', sx: 22,  sy: 0,   sw: 128, sh: 128 },
-            clinic:  { url: 'sprites/npc_clinic.png?v=3',  sx: 205, sy: 135, sw: 105, sh: 105 },
-            mercs:   { url: 'sprites/npc_mercs.png?v=3',   sx: 150, sy: 8,   sw: 115, sh: 115 },
-            quests:  { url: 'sprites/npc_quests.png?v=3',  sx: 20,  sy: 15,  sw: 200, sh: 200 }
+            host:    { url: 'sprites/npc_host.png?v=10',    sx: 455, sy: 10,  sw: 420, sh: 420 },
+            verbirz: { url: 'sprites/npc_verbirz.png?v=10', sx: 300, sy: 12,  sw: 240, sh: 240 },
+            clinic:  { url: 'sprites/npc_clinic.png?v=10',  sx: 105, sy: 8,   sw: 255, sh: 255 },
+            mercs:   { url: 'sprites/npc_mercs.png?v=10',   sx: 150, sy: 8,   sw: 115, sh: 115 },
+            quests:  { url: 'sprites/npc_quests.png?v=16',  sx: 230, sy: 40,  sw: 170, sh: 170 },
+            smith:   { url: 'sprites/npc_smith.png?v=1',    sx: 105, sy: 0,   sw: 130, sh: 130 }
         };
 
         const cfg = spriteMap[sec];
